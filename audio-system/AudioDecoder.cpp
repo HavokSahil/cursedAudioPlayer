@@ -3,12 +3,13 @@
 #include <miniaudio.h>
 
 AudioDecoder::AudioDecoder(const std::string& filename):
+    _filename(filename),
     _state(READY)
 {
     ma_decoder_config decoderConfig = ma_decoder_config_init_default();
     decoderConfig.format = ma_format_f32;
     _decoder = std::make_unique<ma_decoder>();
-    if (ma_decoder_init_file(filename.c_str(), &decoderConfig, _decoder.get()) != MA_SUCCESS) {
+    if (ma_decoder_init_file(_filename.c_str(), &decoderConfig, _decoder.get()) != MA_SUCCESS) {
         LOGE("Failed to init decoder");
         _state = FINISHED;
     }
@@ -77,9 +78,10 @@ bool AudioDecoder::jumpToFrame(const size_t frame) {
 void AudioDecoder::reset() {
     if (ma_decoder_seek_to_pcm_frame(_decoder.get(), 0)!= MA_SUCCESS) {
         _state = FINISHED;
-    } else _state = READY;
+    } else {
+        _state = READY;
+    };
 }
-
 
 std::chrono::milliseconds AudioDecoder::getElapsedMs() const {
     const auto currentFrame = static_cast<double>(getCurrentPcmFrame());

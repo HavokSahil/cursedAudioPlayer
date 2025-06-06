@@ -56,6 +56,7 @@ public:
 
     void seek(std::chrono::milliseconds time);
     void seek(size_t frame);
+    void reset();
 
 private:
     std::thread _thread;

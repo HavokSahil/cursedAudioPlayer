@@ -32,6 +32,8 @@ public:
     AudioSourceState getState() override;
 
 private:
+    /// @brief The path of the audio file
+    std::string _filename;
     /// @brief The current state of the decoder.
     AudioSourceState _state;
     /// @brief Miniaudio Decoder struct.

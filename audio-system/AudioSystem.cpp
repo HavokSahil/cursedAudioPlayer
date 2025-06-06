@@ -100,18 +100,19 @@ void AudioSystem::_background_loop() {
                     framesWritten
                 ) != ERR_OK) {
                     LOGE("Failed to write frames to the buffer");
-                    _isPlaying = false; break;
+                    break;
                 };
                 written += framesWritten;
                 std::this_thread::sleep_for(std::chrono::milliseconds(10));
             }
         } else {
             LOGE("Failed to read from audio source in background loop");
-            _isPlaying = false; break;
+            break;
         }
     }
 
     _isPlaying = false;
+    _audioSink->pause();
 }
 
 bool AudioSystem::getIsPlaying() const {
@@ -133,15 +134,24 @@ float AudioSystem::getSpeed() const {
 void AudioSystem::setIsPlaying(const bool isPlaying) {
     _isPlaying = isPlaying;
     if (_isPlaying) {
+        if (_audioSource->getState() == AudioSourceState::FINISHED) {
+            reset();
+        }
         _thread = std::thread(&AudioSystem::_background_loop, this);
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
-        assert(_audioSink->play() == ERR_OK);
+        _audioSink->play();
     } else {
-        assert(_audioSink->pause() == ERR_OK);
+        _audioSink->pause();
         if (_thread.joinable()) {
             _thread.join();
         }
     }
+}
+
+void AudioSystem::reset() {
+    _audioSource->reset();
+    _ringBuffer->reset();
+    if (_thread.joinable()) _thread.join();
 }
 
 void AudioSystem::setVolume(const float volume) {
@@ -157,17 +167,17 @@ void AudioSystem::setIsMute(const bool isMute) {
 }
 
 void AudioSystem::seek(const std::chrono::milliseconds time) {
-    const bool __isPlaying = _isPlaying;
-    _isPlaying = false;
+    // const bool __isPlaying = _isPlaying;
+    // _isPlaying = false;
     _audioSource->jumpToTime(time);
     _ringBuffer->reset();
-    setIsPlaying(__isPlaying);
+    // setIsPlaying(__isPlaying);
 }
 
 void AudioSystem::seek(const size_t frame) {
-    const bool __isPlaying = _isPlaying;
-    _isPlaying = false;
+    // const bool __isPlaying = _isPlaying;
+    // _isPlaying = false;
     _audioSource->jumpToFrame(frame);
     _ringBuffer->reset();
-    setIsPlaying(__isPlaying);
+    // setIsPlaying(__isPlaying);
 }
