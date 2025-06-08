@@ -5,20 +5,6 @@ Row::~Row() {
     if (_window) delwin(_window);
 }
 
-IWidget* Row::marginTop(int m) {
-    _marginTop = m;
-    return this;
-}
-
-IWidget* Row::build() {
-    if (_window == nullptr)
-        _window = newwin(_height, _width, getTopLeftY(), getTopLeftX());
-    else {
-        mvwin(_window, getTopLeftY(), getTopLeftX());
-    }
-    return this;
-}
-
 void Row::update() {
     for (auto const &child: _children) {
         child->update();
@@ -31,40 +17,53 @@ void Row::handleEvent(int ch, MEVENT &event) {
     }
 }
 
-void Row::add(std::shared_ptr<IWidget> child) {
-    int offsetY = 0;
-    int offsetX = 0;
-    int childrenWidth = child->getWidth();
-    for (auto const &x: _children) {
-        offsetX += _spacing + x->getWidth();
-        childrenWidth += x->getWidth() + _spacing;
+void Row::add(std::shared_ptr<Widget> child) {
+    child->parent(this);  // Set parent
+    _children.push_back(std::move(child));  // Add child to the container
+
+    const int rowWidth = getWidth();
+    const int rowHeight = getHeight();
+
+    // 1. Calculate total width of all children + spacing
+    int totalChildrenWidth = 0;
+    for (size_t i = 0; i < _children.size(); ++i) {
+        totalChildrenWidth += _children[i]->getWidth();
+        if (i > 0)
+            totalChildrenWidth += _spacing;
     }
 
-    offsetX += (_mainAxisAlignment == MX_CENTER)?
-        std::max(0, (_height - childrenWidth) / 2):
-        (_mainAxisAlignment == MX_START)? 0:
-        (_height - childrenWidth);
+    // 2. Determine starting X offset based on main axis alignment
+    int startOffsetX = 0;
+    if (_mainAxisAlignment == MX_CENTER) {
+        startOffsetX = std::max(0, (rowWidth - totalChildrenWidth) / 2);
+    } else if (_mainAxisAlignment == MX_END) {
+        startOffsetX = std::max(0, rowWidth - totalChildrenWidth);
+    }
 
-    offsetY += (_crossAxisAlignment == CRX_CENTER) ?
-        std::max(0, (_width - child->getHeight()) / 2):
-        (_crossAxisAlignment == CRX_START)? 0:
-        std::max(0, _width - child->getHeight());
+    // 3. Re-layout all children (left to right)
+    int offsetX = startOffsetX;
+    for (auto& ch : _children) {
+        int offsetY = 0;
 
-    child->parent(this)
-        ->marginTop(offsetY)
-        ->marginLeft(offsetX)
-        ->build();
+        // Cross axis alignment (vertical)
+        int chHeight = ch->getHeight();
+        if (_crossAxisAlignment == CRX_CENTER) {
+            offsetY = std::max(0, (rowHeight - chHeight) / 2);
+        } else if (_crossAxisAlignment == CRX_END) {
+            offsetY = std::max(0, rowHeight - chHeight);
+        }
 
-    _children.push_back(std::move(child));
+        // Convert to relative offsets
+        double offsetXRel = rowWidth > 0 ? static_cast<double>(offsetX) / rowWidth : 0.0;
+        double offsetYRel = rowHeight > 0 ? static_cast<double>(offsetY) / rowHeight : 0.0;
+
+        ch->marginLeftRel(offsetXRel)
+          ->marginTopRel(offsetYRel);
+
+        offsetX += ch->getWidth() + _spacing;
+    }
 }
 
-int Row::getTopLeftY() {
-    if (_parent) return _parent->getTopLeftY() + _marginTop;
-    return _marginTop;
+int Row::getSpacing() {
+    return _spacing;
 }
-
-int Row::getTopLeftX() {
-    if (_parent) return _parent->getTopLeftX() + _marginLeft;
-    return _marginLeft;
-}
-

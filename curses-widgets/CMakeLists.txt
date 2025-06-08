@@ -7,6 +7,11 @@ add_library(curses_widgets
         Button.cpp
         ProgressBar.cpp
         BoxedContainer.cpp
+        Widget.cpp
+        TextBox.cpp
+        TextBox.h
+        BarPlot.cpp
+        BarPlot.h
 )
 
 target_include_directories(curses_widgets PRIVATE

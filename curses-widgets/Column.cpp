@@ -1,63 +1,23 @@
 #include "Column.h"
 #include <algorithm>
 
-Column::Column() {}
-
 Column::~Column() {
     if (_window != nullptr) delwin(_window);
 }
 
-IWidget* Column::height(int h) {
-    _height = (h == -1) ? (_parent != nullptr) ? _parent->getHeight() : 0 : h;
-    return this;
-}
-
-IWidget* Column::width(int w) {
-    _width = (w == -1) ? (_parent != nullptr) ? _parent->getWidth() : 0 : w;
-    return this;
-}
-
-IWidget* Column::parent(IWidget *p) {
-    _parent = p;
-    return this;
-}
-
-IWidget* Column::marginTop(int m) {
-    _marginTop = m;
-    return this;
-}
-
-IWidget* Column::marginLeft(int m) {
-    _marginLeft = m;
-    return this;
-}
-
-IWidget* Column::spacing(int s) {
+Column* Column::spacing(int s) {
     _spacing = s;
     return this;
 }
 
-IWidget* Column::mainAxisAlignment(MainAxisAlignment maa) {
+Column* Column::mainAxisAlignment(MainAxisAlignment maa) {
     _mainAxisAlignment = maa;
     return this;
 }
 
-IWidget* Column::crossAxisAlignment(CrossAxisAlignment caa) {
+Column* Column::crossAxisAlignment(CrossAxisAlignment caa) {
     _crossAxisAlignment = caa;
     return this;
-}
-
-IWidget* Column::build() {
-    if (_window == nullptr)
-        _window = newwin(_height, _width, getTopLeftY(), getTopLeftX());
-    else {
-        mvwin(_window, getTopLeftY(), getTopLeftX());
-    }
-    return this;
-}
-
-void Column::setState(WidgetState s) {
-    _state = s;
 }
 
 void Column::update() {
@@ -66,80 +26,60 @@ void Column::update() {
     }
 }
 
+
 void Column::handleEvent(int ch, MEVENT &event) {
     for (auto const &child: _children) {
         child->handleEvent(ch, event);
     }
 }
 
-void Column::add(std::shared_ptr<IWidget> child) {
-    int offsetY = 0;
-    int offsetX = 0;
-    int childrenHeight = child->getHeight();
-    for (auto const &x: _children) {
-        offsetY += _spacing + x->getHeight();
-        childrenHeight += x->getHeight() + _spacing;
+void Column::add(std::shared_ptr<Widget> child) {
+    child->parent(this);  // Associate parent now
+    _children.push_back(std::move(child));  // Add child to the container
+
+    const int colHeight = getHeight();
+    const int colWidth = getWidth();
+
+    // 1. Calculate total height of all children + spacing
+    int totalChildrenHeight = 0;
+    for (size_t i = 0; i < _children.size(); ++i) {
+        totalChildrenHeight += _children[i]->getHeight();
+        if (i > 0)
+            totalChildrenHeight += _spacing;
     }
 
-    printf("Height: %d, ChildrenHeigt: %d", _height, childrenHeight);
-    // printf("Width: %d, ChildrenWidth: %d", _width, childrenHeight);
+    // 2. Determine starting Y offset based on main axis alignment
+    int startOffsetY = 0;
+    if (_mainAxisAlignment == MX_CENTER) {
+        startOffsetY = std::max(0, (colHeight - totalChildrenHeight) / 2);
+    } else if (_mainAxisAlignment == MX_END) {
+        startOffsetY = std::max(0, colHeight - totalChildrenHeight);
+    }
 
-    if (_mainAxisAlignment == MX_CENTER)
-        offsetY += std::max(0, (_height - childrenHeight) / 2);
-    else if (_mainAxisAlignment == MX_END)
-        offsetY += (_height - childrenHeight);
+    // 3. Re-layout all children
+    int offsetY = startOffsetY;
+    for (auto& ch : _children) {
+        int offsetX = 0;
 
-    if (_crossAxisAlignment == CRX_CENTER)
-        offsetX += std::max(0, (_width - child->getWidth()) / 2);
-    else if (_crossAxisAlignment == CRX_END)
-        offsetX += std::max(0, _width - child->getWidth());
+        // Cross axis alignment (horizontal)
+        int chWidth = ch->getWidth();
+        if (_crossAxisAlignment == CRX_CENTER) {
+            offsetX = std::max(0, (colWidth - chWidth) / 2);
+        } else if (_crossAxisAlignment == CRX_END) {
+            offsetX = std::max(0, colWidth - chWidth);
+        }
 
-    printf("OffsetY: %d", offsetY);
-    printf("OffsetX: %d", offsetX);
+        // Convert to relative offsets
+        double offsetXRel = colWidth > 0 ? static_cast<double>(offsetX) / colWidth : 0.0;
+        double offsetYRel = colHeight > 0 ? static_cast<double>(offsetY) / colHeight : 0.0;
 
-    child->parent(this)
-        ->marginTop(offsetY)
-        ->marginLeft(offsetX)
-        ->build();
+        ch->marginTopRel(offsetYRel)
+          ->marginLeftRel(offsetXRel);
 
-    _children.push_back(std::move(child));
-}
-
-int Column::getHeight() {
-    return _height;
-}
-
-int Column::getWidth() {
-    return _width;
-}
-
-IWidget* Column::getParent() {
-    return _parent;
-}
-
-int Column::getMarginTop() {
-    return _marginTop;
-}
-
-int Column::getMarginLeft() {
-    return _marginLeft;
-}
-
-int Column::getTopLeftY() {
-    if (_parent) return _parent->getTopLeftY() + _marginTop;
-    return _marginTop;
-}
-
-int Column::getTopLeftX() {
-    if (_parent) return _parent->getTopLeftX() + _marginLeft;
-    return _marginLeft;
+        offsetY += ch->getHeight() + _spacing;
+    }
 }
 
 int Column::getSpacing() {
     return _spacing;
 }
-
-WidgetState Column::getState() {
-    return _state;
-}
-
