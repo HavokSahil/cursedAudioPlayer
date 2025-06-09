@@ -80,6 +80,9 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@v4
 
+      - name: Debug workspace path inside container
+        run: ls -la ${{ github.workspace }}
+
       - name: Set reusable strings
         id: strings
         run: echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
