@@ -47,6 +47,12 @@ jobs:
         working-directory: ${{ steps.strings.outputs.build-output-dir }}
         run: ctest --build-config ${{ matrix.build_type }} --output-on-failure
 
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ubuntu-${{ matrix.c_compiler }}-binary
+          path: ${{ steps.strings.outputs.build-output-dir }}
+
   build-linux-containers:
     runs-on: ubuntu-latest
     strategy:
@@ -98,3 +104,9 @@ jobs:
       - name: Test
         working-directory: ${{ steps.strings.outputs.build-output-dir }}
         run: ctest --build-config ${{ matrix.build_type }} --output-on-failure
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.os }}-binary
+          path: ${{ steps.strings.outputs.build-output-dir }}
