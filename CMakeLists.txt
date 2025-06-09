@@ -4,12 +4,10 @@ project(cursedAudioPlayer)
 # Using latest C++ Standard
 set(CMAKE_CXX_STANDARD 20)
 
-add_compile_options(
-        -O0
-        -fsanitize=address
-)
-
-add_link_options(-fsanitize=address)
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang" OR CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+    add_compile_options(-O0 -fsanitize=address)
+    add_link_options(-fsanitize=address)
+endif()
 
 # Enable testing of modules
 enable_testing()
