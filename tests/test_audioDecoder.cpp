@@ -9,7 +9,7 @@
 #include "err_codes.h"
 
 int test_audio_decoder() {
-    const std::string filename = std::format("{}/imperial_march.wav", TEST_MEDIA_DIR);;
+    const std::string filename = std::string(TEST_MEDIA_DIR) + "/imperial_march.wav";
     AudioDecoder decoder(filename);
     assert(decoder.getState() != AudioSourceState::FINISHED);
 
