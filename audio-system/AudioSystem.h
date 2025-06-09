@@ -46,12 +46,13 @@ public:
 
     bool getIsPlaying() const;
     bool getIsMute() const;
-    float getVolume() const;
-    float getSpeed() const;
+    double getVolume() const;
+    double getSpeed() const;
+    size_t getChunkSize() const;
 
     void setIsPlaying(bool isPlaying);
-    void setVolume(float volume);
-    void setSpeed(float speed);
+    void setVolume(double volume);
+    void setSpeed(double speed);
     void setIsMute(bool isMute);
 
     void seek(std::chrono::milliseconds time);
@@ -66,6 +67,7 @@ private:
     std::unique_ptr<IAudioSink> _audioSink;
 
     std::atomic<bool> _isPlaying{false};
+    std::string _filename;
     bool _isMute {false};
     float _volume {1.0};
     bool _isLoop {false};

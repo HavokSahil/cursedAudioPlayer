@@ -26,8 +26,10 @@ void Row::add(std::shared_ptr<Widget> child) {
 
     // 1. Calculate total width of all children + spacing
     int totalChildrenWidth = 0;
+    int trueChildrenWidth = 0;
     for (size_t i = 0; i < _children.size(); ++i) {
         totalChildrenWidth += _children[i]->getWidth();
+        trueChildrenWidth += _children[i]->getWidth();
         if (i > 0)
             totalChildrenWidth += _spacing;
     }
@@ -38,6 +40,8 @@ void Row::add(std::shared_ptr<Widget> child) {
         startOffsetX = std::max(0, (rowWidth - totalChildrenWidth) / 2);
     } else if (_mainAxisAlignment == MX_END) {
         startOffsetX = std::max(0, rowWidth - totalChildrenWidth);
+    } else if (_mainAxisAlignment == MX_SPACE_BETWEEN && _children.size() > 1) {
+        _spacing = (rowWidth - trueChildrenWidth) / (_children.size() - 1);
     }
 
     // 3. Re-layout all children (left to right)

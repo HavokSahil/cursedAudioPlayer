@@ -42,8 +42,10 @@ void Column::add(std::shared_ptr<Widget> child) {
 
     // 1. Calculate total height of all children + spacing
     int totalChildrenHeight = 0;
+    int totalTrueHeight = 0;
     for (size_t i = 0; i < _children.size(); ++i) {
         totalChildrenHeight += _children[i]->getHeight();
+        totalTrueHeight += _children[i]->getHeight();
         if (i > 0)
             totalChildrenHeight += _spacing;
     }
@@ -54,6 +56,8 @@ void Column::add(std::shared_ptr<Widget> child) {
         startOffsetY = std::max(0, (colHeight - totalChildrenHeight) / 2);
     } else if (_mainAxisAlignment == MX_END) {
         startOffsetY = std::max(0, colHeight - totalChildrenHeight);
+    } else if (_mainAxisAlignment == MX_SPACE_BETWEEN && _children.size() > 1) {
+        _spacing = (colHeight - totalTrueHeight) / (_children.size() - 1);
     }
 
     // 3. Re-layout all children

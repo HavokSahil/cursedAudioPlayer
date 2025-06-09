@@ -1,6 +1,7 @@
 #pragma once
 
 enum MainAxisAlignment {
+    MX_SPACE_BETWEEN,
     MX_CENTER,
     MX_START,
     MX_END

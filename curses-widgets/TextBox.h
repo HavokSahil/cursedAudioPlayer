@@ -22,7 +22,10 @@ public:
     void handleEvent(int ch, MEVENT &event) override;
 
 private:
+    bool _selected{false};
+    int _strOffset{0};
     bool _active{false};
+    bool color_init{true};
     std::string _text;
     GetTextCb _getTextCb{[&]()->std::string { return _text; }};
     Color _color{COLOR_GREEN};

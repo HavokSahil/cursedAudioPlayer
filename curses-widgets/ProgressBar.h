@@ -35,6 +35,7 @@ public:
 
 private:
     double _progress{0.0};
+    bool color_init{true};
     const double _mxProgress = 1.0;
     const double _mnProgress = 0.0;
 

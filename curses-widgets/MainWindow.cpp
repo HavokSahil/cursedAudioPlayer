@@ -30,12 +30,6 @@ Widget *MainWindow::timeoutMs(int ms) {
 }
 
 void MainWindow::update() {
-    if (_commit) {
-        wclear(_window);
-        box(_window, 0, 0);
-        wrefresh(_window);
-        _commit = false;
-    }
     for (auto const &child: _children) {
         child->update();
     }

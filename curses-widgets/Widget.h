@@ -19,7 +19,7 @@ static int id_glob = 0;
 /// @brief The base class for all the widgets.
 class Widget {
 public:
-    Widget(): _id(id_glob+=4) {}
+    Widget(): _id(id_glob+=2) {}
     virtual ~Widget() = default;
     /// @brief Set the absolute height of the widget.
     /// @returns The pointer of the object

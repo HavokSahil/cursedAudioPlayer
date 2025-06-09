@@ -1,9 +1,12 @@
 #pragma once
+#include <complex>
 #include <csignal>
+#include <deque>
 #include <functional>
 #include <memory>
 #include <iostream>
 
+#include "AudioSystem.h"
 #include "MainWindow.h"
 
 class CursedLayout {
@@ -22,6 +25,17 @@ public:
     using GetElapsedSecString = std::function<std::string()>;
     using GetTotalSecString = std::function<std::string()>;
 
+    using SetMuteCallback = std::function<void(bool)>;
+    using GetMuteCallback = std::function<bool()>;
+
+    using SetSpeedCallback = std::function<void(double)>;
+    using GetSpeedCallback = std::function<double()>;
+
+    using AcquireChannelDataCallback = std::function<void(float*)>;
+    using GetAudioSystemInfo = std::function<AudioSystemInfo()>;
+
+    using HexDataCallback = std::function<std::deque<std::pair<size_t, uint32_t>>()>;
+
 
     CursedLayout(
         SetTimeCallback&& setTime,
@@ -32,8 +46,16 @@ public:
         SkipSecondsCallback&& skipNextS,
         SetVolumeCallback&& setVolume,
         GetVolumeCallback&& getVolume,
+        SetMuteCallback&& setMute,
+        GetMuteCallback&& getMute,
+        SetSpeedCallback&& setSpeed,
+        GetSpeedCallback&& getSpeed,
         GetElapsedSecString&& getElapsedSecString,
-        GetTotalSecString&& getTotalSecString
+        GetTotalSecString&& getTotalSecString,
+        AcquireChannelDataCallback&& acquireChannelData,
+        AcquireChannelDataCallback&& acquireSpecData,
+        GetAudioSystemInfo&& getAudioSystemInfo,
+        HexDataCallback&& hexData
     ) :
     setTimeCallback(std::move(setTime)),
     getTimeCallback(std::move(getTime)),
@@ -43,8 +65,16 @@ public:
     nextSecCallback(skipNextS),
     setVolumeCallback(setVolume),
     getVolumeCallback(getVolume),
+    setMuteCallback(setMute),
+    getMuteCallback(getMute),
+    setSpeedCallback(setSpeed),
+    getSpeedCallback(getSpeed),
     getElapsedSecString(getElapsedSecString),
-    getTotalSecString(getTotalSecString)
+    getTotalSecString(getTotalSecString),
+    acquireChannelDataCallback(acquireChannelData),
+    acquireSpecDataCallback(acquireSpecData),
+    getAudioSystemInfo(getAudioSystemInfo),
+    hexDataCallback(hexData)
     {
         instance = this;  // Set static pointer
         signal(SIGWINCH, handle_resize);  // Register handler
@@ -74,8 +104,21 @@ private:
     SetVolumeCallback setVolumeCallback;
     GetVolumeCallback getVolumeCallback;
 
+    SetMuteCallback setMuteCallback;
+    GetMuteCallback getMuteCallback;
+
+    SetSpeedCallback setSpeedCallback;
+    GetSpeedCallback getSpeedCallback;
+
     GetElapsedSecString getElapsedSecString;
     GetTotalSecString getTotalSecString;
+
+    AcquireChannelDataCallback acquireChannelDataCallback;
+    AcquireChannelDataCallback acquireSpecDataCallback;
+
+    GetAudioSystemInfo getAudioSystemInfo;
+
+    HexDataCallback hexDataCallback;
 
     // === Static handler stuff ===
     static CursedLayout* instance;

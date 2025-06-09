@@ -12,6 +12,8 @@ add_library(curses_widgets
         TextBox.h
         BarPlot.cpp
         BarPlot.h
+        FHexStream.cpp
+        FHexStream.h
 )
 
 target_include_directories(curses_widgets PRIVATE

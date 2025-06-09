@@ -6,7 +6,8 @@
 #include "AudioPlayer.h"
 #include "RingBuffer.h"
 
-AudioSystem::AudioSystem(std::string &filename, size_t bufferSize) {
+AudioSystem::AudioSystem(std::string &filename, size_t bufferSize):
+_filename(filename) {
     // Audio Decoder as default audio source
     _audioSource = std::make_unique<AudioDecoder>(filename);
     // Instantiate ring buffer with params of audio source
@@ -58,7 +59,7 @@ AudioSystemInfo AudioSystem::getInfo() const {
         sizeof(float)) / 1024.0;
 
     return (AudioSystemInfo){
-        "Filename",
+        _filename.c_str(),
         "Description of file comes here",
         "float32",
         _audioSource->getSampleRate(),
@@ -83,12 +84,33 @@ AudioSystemState AudioSystem::getState() const {
     };
 }
 
+size_t AudioSystem::getChunkSize() const {
+    return chunkSize;
+}
+
+
 void AudioSystem::_background_loop() {
-    const size_t bufferSize = chunkSize * _audioSource->getChannels();
+    const size_t nChannels = _audioSource->getChannels();
+    const size_t bufferSize = chunkSize * nChannels;
+
     const auto buffer = std::make_unique<float[]>(bufferSize);
+    const auto channelBuffers = std::make_unique<std::vector<std::vector<float>>>(nChannels, std::vector<float>(chunkSize));
+
     while (_isPlaying && _audioSource->getState() == AudioSourceState::READY) {
         size_t framesRead;
         if (_audioSource->read(buffer.get(), chunkSize, framesRead) == ERR_OK) {
+            for (int i = 0; i < framesRead; i++) {
+                for (int c = 0; c < nChannels; c++) {
+                    size_t index = i * nChannels + c;
+                    buffer.get()[index] *= _isMute? 0.0: _volume; // apply the volume filter
+                    channelBuffers->at(c)[i] = buffer.get()[index];
+                }
+            }
+
+            for (int c = 0; c < nChannels; c++) {
+                this->publish(channelBuffers->at(c).data(), framesRead, c);
+            }
+
             size_t written = 0;
             while (written < framesRead && _isPlaying) {
                 size_t framesWritten;
@@ -123,11 +145,11 @@ bool AudioSystem::getIsMute() const {
     return _isMute;
 }
 
-float AudioSystem::getVolume() const {
+double AudioSystem::getVolume() const {
     return _volume;
 }
 
-float AudioSystem::getSpeed() const {
+double AudioSystem::getSpeed() const {
     return _speed;
 }
 
@@ -149,16 +171,16 @@ void AudioSystem::setIsPlaying(const bool isPlaying) {
 }
 
 void AudioSystem::reset() {
+    if (_thread.joinable()) _thread.join();
     _audioSource->reset();
     _ringBuffer->reset();
-    if (_thread.joinable()) _thread.join();
 }
 
-void AudioSystem::setVolume(const float volume) {
+void AudioSystem::setVolume(const double volume) {
     _volume = volume;
 }
 
-void AudioSystem::setSpeed(const float speed) {
+void AudioSystem::setSpeed(const double speed) {
     _speed = speed;
 }
 
@@ -169,15 +191,29 @@ void AudioSystem::setIsMute(const bool isMute) {
 void AudioSystem::seek(const std::chrono::milliseconds time) {
     // const bool __isPlaying = _isPlaying;
     // _isPlaying = false;
-    _audioSource->jumpToTime(time);
-    _ringBuffer->reset();
+    if (_isPlaying && _audioSource->getState() == AudioSourceState::READY) {
+        setIsPlaying(false);
+        _audioSource->jumpToTime(time);
+        _ringBuffer->reset();
+        setIsPlaying(true);
+    } else {
+        _audioSource->jumpToTime(time);
+        _ringBuffer->reset();
+    }
     // setIsPlaying(__isPlaying);
 }
 
 void AudioSystem::seek(const size_t frame) {
     // const bool __isPlaying = _isPlaying;
     // _isPlaying = false;
-    _audioSource->jumpToFrame(frame);
-    _ringBuffer->reset();
+    if (_isPlaying && _audioSource->getState() == AudioSourceState::READY) {
+        setIsPlaying(false);
+        _audioSource->jumpToFrame(frame);
+        _ringBuffer->reset();
+        setIsPlaying(true);
+    } else {
+        _audioSource->jumpToFrame(frame);
+        _ringBuffer->reset();
+    }
     // setIsPlaying(__isPlaying);
 }

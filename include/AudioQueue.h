@@ -1,42 +1,61 @@
 #pragma once
 
-#include <cstring>
+#include <vector>
+#include <deque>
 #include <mutex>
-#include <queue>
 
-template<typename I, typename T = double>
+static size_t gbinSizeCounter = 0;
+
+template<typename I>
 class AudioQueue {
-public:
-    AudioQueue(const size_t capacity, const size_t channels):
-        _queues(std::vector(channels, std::deque<T>(capacity, 0))),
-        _capacity(capacity),
-        _channels(channels)
-    {}
 
-    void pushBuffer(const I* buffer, const size_t frames) {
-        size_t _ch = 0;
-        for (int i = 0; i<frames * _channels; i++) {
-            pushPoint(buffer[i], _ch);
-            _ch = (_ch + 1) % _channels;
+public:
+    AudioQueue(size_t capacity, size_t binSize)
+        : _capacity(capacity),
+          _binSize(binSize),
+          _queue(std::deque<I>(capacity, I(0))) {}
+
+    void pushBuffer(I* buffer, size_t frames) {
+        std::lock_guard<std::mutex> lock(_mutex);
+        I cumVal = I(0);
+        for (size_t i = 0; i < frames; ++i) {
+            cumVal += buffer[i];
+            gbinSizeCounter++;
+            if (gbinSizeCounter % _binSize == 0) {
+                pushPointUnlocked(cumVal / static_cast<I>(_binSize));
+                gbinSizeCounter = 0;
+            }
         }
     }
 
-    void pushPoint(const T data, const size_t channel) {
-        _queues[channel].push_back(data);
-        _queues[channel].pop_front();
+    void pushPoint(I data) {
+        std::lock_guard<std::mutex> lock(_mutex);
+        pushPointUnlocked(data);
     }
 
-    void fullPeek(T* buffer, const size_t _channel) const {
-        memcpy(buffer, &_queues[_channel][0], _capacity);
+    void fullPeek(I* buffer) const {
+        std::lock_guard<std::mutex> lock(_mutex);
+        std::copy(_queue.begin(), _queue.end(), buffer);
     }
 
-    const std::deque<T>& peek(const size_t channel) const {
-        return _queues[channel];
+    std::deque<I> peek() const {
+        std::lock_guard<std::mutex> lock(_mutex);
+        return _queue;
     }
+
+    size_t capacity() const { return _capacity; }
+    size_t size() const { return _capacity; }
 
 private:
-    std::vector<std::deque<T>> _queues;
+    void pushPointUnlocked(I data) {
+        if (_queue.size() >= _capacity) {
+            _queue.pop_front();
+        }
+        _queue.push_back(data);
+    }
+
+    size_t _binSize{16};
     size_t _capacity;
-    std::mutex _mutex;
-    size_t _channels;
+    mutable std::mutex _mutex;
+    std::deque<I> _queue;
 };
