@@ -1,6 +1,7 @@
 #pragma once
 
 #include "IAudioSource.h"
+#include <memory>
 
 struct ma_decoder;
 
