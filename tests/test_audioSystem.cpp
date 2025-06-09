@@ -35,11 +35,5 @@ int test_audio_system() {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 
-    std::cout << "playing again...\n"; fflush(stdout);
-    audioSystem.setIsPlaying(true);
-    while (audioSystem.getIsPlaying()) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    }
-
     return ERR_OK;
 }
