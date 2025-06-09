@@ -42,7 +42,7 @@ jobs:
       if: matrix.os == 'ubuntu-latest'
       run: |
         sudo apt update
-        sudo apt install -y cmake build-essential clang libncurses-devel
+        sudo apt install -y cmake build-essential clang libncurses-dev
 
     - name: Install dependencies (Fedora)
       if: matrix.os == 'fedora'
@@ -58,7 +58,7 @@ jobs:
       if: matrix.os == 'debian'
       run: |
         apt update
-        apt install -y cmake build-essential clang libncurses-devel
+        apt install -y cmake build-essential clang libncurses-dev
 
     - name: Checkout source
       uses: actions/checkout@v4
