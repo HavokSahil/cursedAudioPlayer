@@ -81,7 +81,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Debug workspace path inside container
-        run: tree
+        run: ls
 
       - name: Set reusable strings
         id: strings
