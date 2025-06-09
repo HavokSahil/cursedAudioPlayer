@@ -1,4 +1,4 @@
-name: CMake on multiple platforms
+name: CMake on popular Linux distros
 
 on:
   push:
@@ -8,53 +8,47 @@ on:
 
 jobs:
   build:
-    runs-on: ${{ matrix.os }}
-
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        distro: [ubuntu, debian, fedora, archlinux]
+        compiler: [gcc, clang]
         build_type: [Release]
-        c_compiler: [gcc, clang, cl]
-        include:
-          - os: windows-latest
-            c_compiler: cl
-            cpp_compiler: cl
-          - os: ubuntu-latest
-            c_compiler: gcc
-            cpp_compiler: g++
-          - os: ubuntu-latest
-            c_compiler: clang
-            cpp_compiler: clang++
-        exclude:
-          - os: windows-latest
-            c_compiler: gcc
-          - os: windows-latest
-            c_compiler: clang
-          - os: ubuntu-latest
-            c_compiler: cl
+
+    container:
+      image: ${{ matrix.distro }}
+      options: --privileged  # needed by some distros like archlinux in CI
 
     steps:
+    - name: Install dependencies
+      run: |
+        if [ "${{ matrix.distro }}" = "ubuntu" ] || [ "${{ matrix.distro }}" = "debian" ]; then
+          apt-get update && apt-get install -y cmake g++ gcc clang make libncurses-dev git
+        elif [ "${{ matrix.distro }}" = "fedora" ]; then
+          dnf install -y cmake gcc gcc-c++ clang make ncurses-devel git
+        elif [ "${{ matrix.distro }}" = "archlinux" ]; then
+          pacman -Sy --noconfirm cmake gcc clang make ncurses git
+        fi
+
     - name: Checkout source
       uses: actions/checkout@v4
 
-    - name: Set reusable strings
-      id: strings
-      shell: bash
-      run: |
-        echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
+    - name: Set build directory
+      id: vars
+      run: echo "build-dir=${GITHUB_WORKSPACE}/build" >> "$GITHUB_ENV"
 
     - name: Configure CMake
       run: >
-        cmake -B ${{ steps.strings.outputs.build-output-dir }}
-        -DCMAKE_C_COMPILER=${{ matrix.c_compiler }}
-        -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }}
+        cmake -B ${{ env.build-dir }}
+        -DCMAKE_C_COMPILER=${{ matrix.compiler }}
+        -DCMAKE_CXX_COMPILER=${{ matrix.compiler }}++
         -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
         -S ${{ github.workspace }}
 
-    - name: Build project
-      run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }}
+    - name: Build
+      run: cmake --build ${{ env.build-dir }} --config ${{ matrix.build_type }}
 
-    - name: Run tests
-      working-directory: ${{ steps.strings.outputs.build-output-dir }}
-      run: ctest --build-config ${{ matrix.build_type }} --output-on-failure
+    - name: Test
+      working-directory: ${{ env.build-dir }}
+      run: ctest --output-on-failure
