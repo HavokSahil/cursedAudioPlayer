@@ -80,8 +80,23 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@v4
 
-      - name: Debug workspace path inside container
-        run: ls
+      - name: Debug container environment and paths
+        run: |
+          echo "Environment variables:"
+          env
+          echo "Check github.workspace:"
+          echo "github.workspace = '${{ github.workspace }}'"
+          echo "Does github.workspace directory exist?"
+          if [ -d "${{ github.workspace }}" ]; then
+            echo "YES: listing contents:"
+            ls -la "${{ github.workspace }}"
+          else
+            echo "NO: directory does not exist."
+          fi
+          echo "Listing root directory:"
+          ls -la /
+          echo "Listing /github directory if exists:"
+          if [ -d /github ]; then ls -la /github; else echo "/github does not exist"; fi
 
       - name: Set reusable strings
         id: strings
