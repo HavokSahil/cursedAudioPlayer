@@ -1,4 +1,4 @@
-name: CMake on popular Linux distros
+name: CMake on multiple platforms
 
 on:
   push:
@@ -8,47 +8,78 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        distro: [ubuntu, debian, fedora, archlinux]
-        compiler: [gcc, clang]
+        os: [ubuntu-latest, fedora, arch, debian]
         build_type: [Release]
+        c_compiler: [gcc, clang]
+        include:
+          - os: ubuntu-latest
+            cpp_compiler: g++
+            c_compiler: gcc
+          - os: ubuntu-latest
+            cpp_compiler: clang++
+            c_compiler: clang
+          - os: fedora
+            container: fedora:latest
+            cpp_compiler: g++
+            c_compiler: gcc
+          - os: arch
+            container: archlinux:base
+            cpp_compiler: g++
+            c_compiler: gcc
+          - os: debian
+            container: debian:latest
+            cpp_compiler: g++
+            c_compiler: gcc
 
-    container:
-      image: ${{ matrix.distro }}
-      options: --privileged  # needed by some distros like archlinux in CI
+    runs-on: ubuntu-latest
+    container: ${{ matrix.container || '' }}
 
     steps:
-    - name: Install dependencies
+    - name: Install dependencies (Ubuntu)
+      if: matrix.os == 'ubuntu-latest'
       run: |
-        if [ "${{ matrix.distro }}" = "ubuntu" ] || [ "${{ matrix.distro }}" = "debian" ]; then
-          apt-get update && apt-get install -y cmake g++ gcc clang make libncurses-dev git
-        elif [ "${{ matrix.distro }}" = "fedora" ]; then
-          dnf install -y cmake gcc gcc-c++ clang make ncurses-devel git
-        elif [ "${{ matrix.distro }}" = "archlinux" ]; then
-          pacman -Sy --noconfirm cmake gcc clang make ncurses git
-        fi
+        sudo apt update
+        sudo apt install -y cmake build-essential clang libncurses-devel
+
+    - name: Install dependencies (Fedora)
+      if: matrix.os == 'fedora'
+      run: |
+        dnf install -y cmake make gcc-c++ clang ncurses-devel
+
+    - name: Install dependencies (Arch)
+      if: matrix.os == 'arch'
+      run: |
+        pacman -Sy --noconfirm cmake base-devel clang ncurses
+
+    - name: Install dependencies (Debian)
+      if: matrix.os == 'debian'
+      run: |
+        apt update
+        apt install -y cmake build-essential clang libncurses-devel
 
     - name: Checkout source
       uses: actions/checkout@v4
 
-    - name: Set build directory
-      id: vars
-      run: echo "build-dir=${GITHUB_WORKSPACE}/build" >> "$GITHUB_ENV"
+    - name: Set reusable strings
+      id: strings
+      shell: bash
+      run: |
+        echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
 
     - name: Configure CMake
       run: >
-        cmake -B ${{ env.build-dir }}
-        -DCMAKE_C_COMPILER=${{ matrix.compiler }}
-        -DCMAKE_CXX_COMPILER=${{ matrix.compiler }}++
+        cmake -B ${{ steps.strings.outputs.build-output-dir }}
+        -DCMAKE_C_COMPILER=${{ matrix.c_compiler }}
+        -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }}
         -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
         -S ${{ github.workspace }}
 
-    - name: Build
-      run: cmake --build ${{ env.build-dir }} --config ${{ matrix.build_type }}
+    - name: Build project
+      run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }}
 
-    - name: Test
-      working-directory: ${{ env.build-dir }}
-      run: ctest --output-on-failure
+    - name: Run tests
+      working-directory: ${{ steps.strings.outputs.build-output-dir }}
+      run: ctest --build-config ${{ matrix.build_type }} --output-on-failure
