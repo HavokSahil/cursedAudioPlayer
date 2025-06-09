@@ -7,79 +7,94 @@ on:
     branches: [ "main" ]
 
 jobs:
-  build:
+  build-ubuntu:
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, fedora, arch, debian]
         build_type: [Release]
         c_compiler: [gcc, clang]
         include:
-          - os: ubuntu-latest
+          - c_compiler: gcc
             cpp_compiler: g++
-            c_compiler: gcc
-          - os: ubuntu-latest
+          - c_compiler: clang
             cpp_compiler: clang++
-            c_compiler: clang
+    steps:
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y cmake build-essential clang libncurses-dev
+
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set reusable strings
+        id: strings
+        run: echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
+
+      - name: Configure CMake
+        run: >
+          cmake -B ${{ steps.strings.outputs.build-output-dir }}
+          -DCMAKE_C_COMPILER=${{ matrix.c_compiler }}
+          -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }}
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+          -S ${{ github.workspace }}
+
+      - name: Build
+        run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }}
+
+      - name: Test
+        working-directory: ${{ steps.strings.outputs.build-output-dir }}
+        run: ctest --build-config ${{ matrix.build_type }} --output-on-failure
+
+  build-linux-containers:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [fedora, arch, debian]
+        build_type: [Release]
+        include:
           - os: fedora
             container: fedora:latest
             cpp_compiler: g++
             c_compiler: gcc
+            install: dnf install -y cmake make gcc-c++ clang ncurses-devel
           - os: arch
             container: archlinux:base
             cpp_compiler: g++
             c_compiler: gcc
+            install: pacman -Sy --noconfirm cmake base-devel clang ncurses
           - os: debian
             container: debian:latest
             cpp_compiler: g++
             c_compiler: gcc
+            install: apt update && apt install -y cmake build-essential clang libncurses-dev
 
-    runs-on: ubuntu-latest
-    container: ${{ matrix.container || '' }}
+    container: ${{ matrix.container }}
 
     steps:
-    - name: Install dependencies (Ubuntu)
-      if: matrix.os == 'ubuntu-latest'
-      run: |
-        sudo apt update
-        sudo apt install -y cmake build-essential clang libncurses-dev
+      - name: Install dependencies
+        run: ${{ matrix.install }}
 
-    - name: Install dependencies (Fedora)
-      if: matrix.os == 'fedora'
-      run: |
-        dnf install -y cmake make gcc-c++ clang ncurses-devel
+      - name: Checkout source
+        uses: actions/checkout@v4
 
-    - name: Install dependencies (Arch)
-      if: matrix.os == 'arch'
-      run: |
-        pacman -Sy --noconfirm cmake base-devel clang ncurses
+      - name: Set reusable strings
+        id: strings
+        run: echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
 
-    - name: Install dependencies (Debian)
-      if: matrix.os == 'debian'
-      run: |
-        apt update
-        apt install -y cmake build-essential clang libncurses-dev
+      - name: Configure CMake
+        run: >
+          cmake -B ${{ steps.strings.outputs.build-output-dir }}
+          -DCMAKE_C_COMPILER=${{ matrix.c_compiler }}
+          -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }}
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+          -S ${{ github.workspace }}
 
-    - name: Checkout source
-      uses: actions/checkout@v4
+      - name: Build
+        run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }}
 
-    - name: Set reusable strings
-      id: strings
-      shell: bash
-      run: |
-        echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
-
-    - name: Configure CMake
-      run: >
-        cmake -B ${{ steps.strings.outputs.build-output-dir }}
-        -DCMAKE_C_COMPILER=${{ matrix.c_compiler }}
-        -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }}
-        -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
-        -S ${{ github.workspace }}
-
-    - name: Build project
-      run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }}
-
-    - name: Run tests
-      working-directory: ${{ steps.strings.outputs.build-output-dir }}
-      run: ctest --build-config ${{ matrix.build_type }} --output-on-failure
+      - name: Test
+        working-directory: ${{ steps.strings.outputs.build-output-dir }}
+        run: ctest --build-config ${{ matrix.build_type }} --output-on-failure
