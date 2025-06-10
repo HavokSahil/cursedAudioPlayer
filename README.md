@@ -47,4 +47,4 @@ PRs and issues are welcome.
 - Keep code modular and readable.
 
 ## LICENSE
-GNU License. See `LICENSE` for full terms. 
+GNU Public License. See ![LICENSE](LICENSE) for full terms. 
