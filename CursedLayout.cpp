@@ -2,15 +2,15 @@
 
 #include "BarPlot.h"
 #include "BoxedContainer.h"
-#include "Column.h"
-#include "ProgressBar.h"
 #include "Button.h"
+#include "Column.h"
 #include "FHexStream.h"
+#include "ProgressBar.h"
 #include "Row.h"
 #include "TextBox.h"
 
 // Static member definition
-CursedLayout* CursedLayout::instance = nullptr;
+CursedLayout *CursedLayout::instance = nullptr;
 
 void CursedLayout::mount() {
     mainWindow = std::make_unique<MainWindow>();
@@ -50,35 +50,47 @@ void CursedLayout::mount() {
     titleTextBox->bgColor(COLOR_BLACK);
     metaCol->add(titleTextBox);
 
-        auto addMetaDataRow = [&](const char* label, const char* dValue, std::function<std::string()>&&callback) {
-            /// @brief Sample Rate
-            auto outerRow = std::make_shared<Row>();
-            outerRow->parent(metaCol.get())->widthRel(1.0)->height(1);
-            outerRow->mainAxisAlignment(MX_SPACE_BETWEEN);
-            metaCol->add(outerRow);
+    auto addMetaDataRow = [&](const char *label, const char *dValue,
+                              std::function<std::string()> &&callback) {
+        /// @brief Sample Rate
+        auto outerRow = std::make_shared<Row>();
+        outerRow->parent(metaCol.get())->widthRel(1.0)->height(1);
+        outerRow->mainAxisAlignment(MX_SPACE_BETWEEN);
+        metaCol->add(outerRow);
 
-            auto labelWidget = std::make_shared<TextBox>();
-            labelWidget->parent(outerRow.get())->height(1)->widthRel(0.3);
-            labelWidget->text(label);
-            labelWidget->color(COLOR_GREEN);
-            labelWidget->bgColor(COLOR_BLACK);
-            outerRow->add(labelWidget);
+        auto labelWidget = std::make_shared<TextBox>();
+        labelWidget->parent(outerRow.get())->height(1)->widthRel(0.3);
+        labelWidget->text(label);
+        labelWidget->color(COLOR_GREEN);
+        labelWidget->bgColor(COLOR_BLACK);
+        outerRow->add(labelWidget);
 
-            auto valueWidget = std::make_shared<TextBox>();
-            valueWidget->parent(outerRow.get())->height(1)->widthRel(0.7);
-            valueWidget->text(dValue);
-            valueWidget->color(COLOR_RED);
-            valueWidget->bgColor(COLOR_BLACK);
-            valueWidget->getTextCb(std::move(callback));
-            outerRow->add(valueWidget);
-        };
+        auto valueWidget = std::make_shared<TextBox>();
+        valueWidget->parent(outerRow.get())->height(1)->widthRel(0.7);
+        valueWidget->text(dValue);
+        valueWidget->color(COLOR_RED);
+        valueWidget->bgColor(COLOR_BLACK);
+        valueWidget->getTextCb(std::move(callback));
+        outerRow->add(valueWidget);
+    };
 
-    addMetaDataRow("Filename", "NA", [&]()->std::string { return getAudioSystemInfo().name; });
-    addMetaDataRow("Format", "NA", [&]()->std::string { return getAudioSystemInfo().format; });
-    addMetaDataRow("Sample Rate", "NA", [&]()->std::string { return std::to_string(getAudioSystemInfo().sample_rate); });
-    addMetaDataRow("Channels", "NA", [&]()->std::string { return std::to_string(getAudioSystemInfo().channels); });
-    addMetaDataRow("Total Frames", "NA", [&]()->std::string { return std::to_string(getAudioSystemInfo().total_frames); });
-    addMetaDataRow("Bitrate(kbps)", "NA", [&]()->std::string { return std::to_string(getAudioSystemInfo().bitrate); });
+    addMetaDataRow("Filename", "NA",
+                   [&]() -> std::string { return getAudioSystemInfo().name; });
+    addMetaDataRow("Format", "NA", [&]() -> std::string {
+        return getAudioSystemInfo().format;
+    });
+    addMetaDataRow("Sample Rate", "NA", [&]() -> std::string {
+        return std::to_string(getAudioSystemInfo().sample_rate);
+    });
+    addMetaDataRow("Channels", "NA", [&]() -> std::string {
+        return std::to_string(getAudioSystemInfo().channels);
+    });
+    addMetaDataRow("Total Frames", "NA", [&]() -> std::string {
+        return std::to_string(getAudioSystemInfo().total_frames);
+    });
+    addMetaDataRow("Bitrate(kbps)", "NA", [&]() -> std::string {
+        return std::to_string(getAudioSystemInfo().bitrate);
+    });
 
     /// @brief Statistical and Analysis Row
     auto statRow = std::make_shared<Row>();
@@ -151,8 +163,9 @@ void CursedLayout::mount() {
     btnPrev10s->parent(mainCol.get())->height(3)->width(10);
     btnPrev10s->activeText("*");
     btnPrev10s->inactiveText("<< 10s");
+    btnPrev10s->triggerKey('b');
     btnPrev10s->onClick([this](bool _) { prevSecCallback(10); });
-    btnPrev10s->getStatusCb([]()->bool { return false; });
+    btnPrev10s->getStatusCb([]() -> bool { return false; });
     btnPrev10s->color(COLOR_RED);
     btnRow->add(btnPrev10s);
 
@@ -160,6 +173,7 @@ void CursedLayout::mount() {
     btnPlay->parent(mainCol.get())->height(3)->width(10);
     btnPlay->activeText("Pause");
     btnPlay->inactiveText("Play");
+    btnPlay->triggerKey(' ');
     btnPlay->onClick(std::move(setPlaybackCallback));
     btnPlay->getStatusCb(std::move(getPlaybackCallback));
     btnRow->add(btnPlay);
@@ -168,8 +182,9 @@ void CursedLayout::mount() {
     btnNext10s->parent(mainCol.get())->height(3)->width(10);
     btnNext10s->activeText("*");
     btnNext10s->inactiveText("10s >>");
+    btnNext10s->triggerKey('f');
     btnNext10s->onClick([this](bool _) { nextSecCallback(10); });
-    btnNext10s->getStatusCb([]()->bool { return false; });
+    btnNext10s->getStatusCb([]() -> bool { return false; });
     btnNext10s->color(COLOR_RED);
     btnRow->add(btnNext10s);
 
@@ -177,6 +192,7 @@ void CursedLayout::mount() {
     btnMute->parent(btnRow.get())->height(3)->width(10);
     btnMute->activeText("Unmute");
     btnMute->inactiveText("Mute");
+    btnMute->triggerKey('m');
     btnMute->onClick(std::move(setMuteCallback));
     btnMute->getStatusCb(std::move(getMuteCallback));
     btnRow->add(btnMute);
@@ -185,11 +201,11 @@ void CursedLayout::mount() {
     pbVolume->parent(btnRow.get())->height(1)->width(16);
     pbVolume->color(COLOR_RED);
     pbVolume->bgColor(COLOR_BLACK);
-    pbVolume->onTouch( [this](double v) { setVolumeCallback(v); });
-    pbVolume->getProgressCb( [this]()->double {return getVolumeCallback(); } );
+    pbVolume->onTouch([this](double v) { setVolumeCallback(v); });
+    pbVolume->getProgressCb([this]() -> double { return getVolumeCallback(); });
     btnRow->add(pbVolume);
 
-    auto getVolumeString = [this]()->std::string {
+    auto getVolumeString = [this]() -> std::string {
         double v = getVolumeCallback() * 100.0;
         char buff[32];
         sprintf(buff, "%.2f %%", v);
@@ -206,10 +222,6 @@ void CursedLayout::mount() {
     mainWindow->resize();
 }
 
-void CursedLayout::resize() {
-    mainWindow->resize();
-}
+void CursedLayout::resize() { mainWindow->resize(); }
 
-void CursedLayout::run() {
-    mainWindow->run();
-}
+void CursedLayout::run() { mainWindow->run(); }
