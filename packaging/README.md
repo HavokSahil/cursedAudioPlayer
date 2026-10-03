@@ -37,7 +37,8 @@ git tag -a v1.1.1 -m 'cursedap 1.1.1'
 git push origin v1.1.1
 ```
 
-Manual reruns must select the version tag, not the default branch. Release packages
+For a manual rerun, select the default branch and enter the existing version tag
+in the workflow's `tag` input. All builds use that exact tag's source. Release packages
 include all bundled library notices. To reproduce DEB or RPM packages, install the
 build dependencies listed in the workflow and run `packaging/build-linux.sh DEB
 /tmp/packages` or `packaging/build-linux.sh RPM /tmp/packages` from the source root.

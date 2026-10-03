@@ -3,6 +3,13 @@ on:
   push:
     tags: ['v*']
   workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing version tag to release (vX.Y.Z)
+        required: true
+        type: string
+env:
+  RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
 permissions:
   contents: read
 jobs:
@@ -10,11 +17,13 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
       - name: Validate tag and archive source
         shell: bash
         run: |
           version=$(sed -n 's/^project(cursedAudioPlayer VERSION \([^ ]*\).*/\1/p' CMakeLists.txt)
-          test "$GITHUB_REF_NAME" = "v$version"
+          test "$RELEASE_TAG" = "v$version"
           mkdir artifacts
           git archive --format=tar --prefix="cursedap-$version/" HEAD | gzip -n > "artifacts/cursedap-$version.tar.gz"
       - uses: actions/upload-artifact@v4
@@ -46,6 +55,8 @@ jobs:
             setup: zypper --non-interactive install gcc-c++ cmake make ncurses-devel rpm-build
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
       - name: Build and test distro package
         env:
           IMAGE: ${{ matrix.image }}
@@ -65,6 +76,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
       - uses: actions/download-artifact@v4
         with:
           name: source
@@ -82,9 +95,9 @@ jobs:
             su builder -c "makepkg --printsrcinfo > .SRCINFO"
             cp ../cursedap-*.tar.gz .
             su builder -c "makepkg --noconfirm"
-            namcap PKGBUILD *.pkg.tar.zst | tee /tmp/namcap.log
+            namcap PKGBUILD cursedap-[0-9]*.pkg.tar.zst | tee /tmp/namcap.log
             if rg -q " E: " /tmp/namcap.log; then exit 1; fi
-            cp *.pkg.tar.zst /src/artifacts/
+            cp cursedap-[0-9]*.pkg.tar.zst /src/artifacts/
             cp .SRCINFO /src/artifacts/aur/
           '
           tar -czf artifacts/cursedap-aur.tar.gz -C artifacts/aur PKGBUILD .SRCINFO
@@ -112,4 +125,4 @@ jobs:
         run: |
           cd artifacts
           sha256sum * > SHA256SUMS
-          gh release create "$GITHUB_REF_NAME" --verify-tag --title "cursedap ${GITHUB_REF_NAME#v}" --notes 'Smooth ncurses rendering with simultaneous waveform, FFT and ECQT pitch classes. Binary renamed to cursedap. Choose the package matching your distro; AUR submission is pending account availability.' *
+          gh release create "$RELEASE_TAG" --verify-tag --title "cursedap ${RELEASE_TAG#v}" --notes 'Smooth ncurses rendering with simultaneous waveform, FFT and ECQT pitch classes. Binary renamed to cursedap. Choose the package matching your distro; AUR submission is pending account availability.' *
