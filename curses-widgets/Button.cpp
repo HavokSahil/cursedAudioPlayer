@@ -12,6 +12,7 @@ void Button::update() {
         _active = st;
         _commit = true;
     }
+    if (!_window) return;
     if (_commit) {
         std::string text = _active ? _activeText : _inactiveText;
         int startX =
@@ -28,21 +29,22 @@ void Button::update() {
                   text.substr(0, _width).c_str());
         wattroff(_window, A_BOLD);
         wattroff(_window, COLOR_PAIR(_id));
-        wrefresh(_window);
+        wnoutrefresh(_window);
         _commit = false;
     }
 }
 
 void Button::handleEvent(int ch, MEVENT &event) {
+    if (!_window) return;
     if (ch == KEY_MOUSE && (event.bstate & BUTTON1_PRESSED)) {
-        if (event.y >= getTopLeftY() && event.y < getTopLeftY() + getHeight() &&
-            event.x >= getTopLeftX() && event.x < getTopLeftX() + getWidth()) {
-            _active = !_active;
+        if (event.y >= getTopLeftY() && event.y < getTopLeftY() + getmaxy(_window) &&
+            event.x >= getTopLeftX() && event.x < getTopLeftX() + getmaxx(_window)) {
+            _active = !_getStatusCb();
             _callback(_active);
             _commit = true;
         }
-    } else if (ch == _triggerKey) {
-        _active = !_active;
+    } else if (_triggerKey != 0 && ch == _triggerKey) {
+        _active = !_getStatusCb();
         _callback(_active);
         _commit = true;
     }

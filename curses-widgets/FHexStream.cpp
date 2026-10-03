@@ -3,15 +3,16 @@
 
 #include "FHexStream.h"
 #include <iomanip>
+#include <sstream>
 #include "Column.h"
 
 FHexStream::~FHexStream() {
-    if (_window) delwin(_window);;
+    if (_window) delwin(_window);
 }
 
 static std::string toHex(uint32_t value) {
     std::stringstream ss;
-    ss << "0x" << std::hex << std::uppercase << std::setfill('0') << std::setw(8) << value;
+    ss << std::hex << std::uppercase << std::setfill('0') << std::setw(8) << value;
     return ss.str();
 }
 
@@ -26,30 +27,33 @@ FHexStream* FHexStream::mount() {
     _bytes.resize(_nLines);
     _lines.resize(_nLines);
 
-    for (int i = 0; i<_nLines; i++) {
+    for (size_t i = 0; i < _nLines; i++) {
         auto row = std::make_shared<Row>();
-        row->parent(this)->widthRel(0.8)->height(1);
+        row->parent(this)->widthRel(1.0)->height(1);
         row->mainAxisAlignment(MX_CENTER);
 
-        for (int j = 0; j < _nBytes/4; j++) {
-            uint32_t index = (i * _nBytes / 4) + j;
+        for (size_t j = 0; j < _nBytes / 4; j++) {
+            size_t index = (i * _nBytes / 4) + j;
             auto address = std::make_shared<TextBox>();
-            address->parent(row.get())->width(12)->height(1);
+            address->parent(row.get())->width(7)->height(1);
+            address->padding(0);
             address->color(COLOR_GREEN);
             address->bgColor(COLOR_BLACK);
-            address->text((j == -1)? "0x8000000": "0x00 0x00 0x00 0x00");
+            address->text("000000");
             address->getTextCb([index, this]() -> std::string {
-                return toHex(_data[index].first);
+                std::ostringstream out;
+                out << std::hex << std::uppercase << std::setfill('0') << std::setw(6) << _data[index].first;
+                return out.str();
             });
 
             row->add(address);
             _bytes[i].push_back(std::move(address));
 
             auto textbox = std::make_shared<TextBox>();
-            textbox->parent(row.get())->width(12)->height(1);
-            textbox->color(COLOR_RED);
+            textbox->parent(row.get())->width(10)->height(1);
+            textbox->color(COLOR_WHITE);
             textbox->bgColor(COLOR_BLACK);
-            textbox->text((j == -1)? "0x8000000": "0x00 0x00 0x00 0x00");
+            textbox->text("00000000");
             textbox->getTextCb([index, this]() -> std::string {
                 return toHex(_data[index].second);
             });
@@ -65,17 +69,21 @@ FHexStream* FHexStream::mount() {
 
 
 void FHexStream::update() {
-    std::deque<std::pair<size_t, uint32_t>> update = _dataCallback();
-    size_t total = _nBytes * _nLines / 4;
+    const auto now = std::chrono::steady_clock::now();
+    if (now >= _nextUpdate) {
+        std::deque<std::pair<size_t, uint32_t>> update = _dataCallback();
+        size_t total = _nBytes * _nLines / 4;
 
-    size_t i = 0;
-    for (; i < update.size() && i < total; ++i) {
-        auto [cnt, bytes4] = update[i];
-        _data[i] = {cnt, bytes4};
-    }
+        size_t i = 0;
+        for (; i < update.size() && i < total; ++i) {
+            auto [cnt, bytes4] = update[i];
+            _data[i] = {cnt, bytes4};
+        }
 
-    for (; i < total; ++i) {
-        _data[i] = {0, 0};
+        for (; i < total; ++i) {
+            _data[i] = {0, 0};
+        }
+        _nextUpdate = now + std::chrono::milliseconds(100);
     }
 
     for (auto &child: _children) {

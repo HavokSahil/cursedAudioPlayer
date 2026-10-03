@@ -1,0 +1,24 @@
+# Maintainer: Sahil Raj <havoksahil@gmail.com>
+pkgname=cursedap
+pkgver=@VERSION@
+pkgrel=1
+pkgdesc='Terminal audio player with waveform, FFT and CQT pitch classes'
+arch=('x86_64')
+url='https://github.com/havoksahil/cursedAudioPlayer'
+license=('GPL-3.0-only' 'MIT' 'MIT-0' 'custom:PFFFT')
+depends=('gcc-libs' 'glibc' 'ncurses')
+makedepends=('cmake' 'gcc' 'make')
+source=("${pkgname}-${pkgver}.tar.gz::https://github.com/havoksahil/cursedAudioPlayer/releases/download/v${pkgver}/${pkgname}-${pkgver}.tar.gz")
+sha256sums=('@SOURCE_SHA256@')
+
+build() {
+    cmake -S "$srcdir/$pkgname-$pkgver" -B build \
+        -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr
+    cmake --build build
+}
+check() {
+    ctest --test-dir build --output-on-failure
+}
+package() {
+    DESTDIR="$pkgdir" cmake --install build
+}

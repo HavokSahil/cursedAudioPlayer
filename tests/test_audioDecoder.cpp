@@ -69,5 +69,10 @@ int test_audio_decoder() {
     assert(framesRead == 0);
 
     LOGI("AudioDecoder test passed.");
+    assert(!decoder.jumpToTime(std::chrono::milliseconds(-1)));
+    assert(decoder.jumpToFrame(0));
+    assert(decoder.getState() == AudioSourceState::READY);
+    assert(decoder.read(buffer.get(), 128, framesRead) == ERR_OK);
+    assert(framesRead == 128);
     return ERR_OK;
 }

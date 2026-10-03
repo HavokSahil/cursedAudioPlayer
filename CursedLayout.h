@@ -1,10 +1,9 @@
 #pragma once
-#include <complex>
-#include <csignal>
+#include <cstdint>
+#include <string>
 #include <deque>
 #include <functional>
 #include <memory>
-#include <iostream>
 
 #include "AudioSystem.h"
 #include "MainWindow.h"
@@ -28,14 +27,10 @@ public:
     using SetMuteCallback = std::function<void(bool)>;
     using GetMuteCallback = std::function<bool()>;
 
-    using SetSpeedCallback = std::function<void(double)>;
-    using GetSpeedCallback = std::function<double()>;
-
     using AcquireChannelDataCallback = std::function<void(float*)>;
     using GetAudioSystemInfo = std::function<AudioSystemInfo()>;
 
     using HexDataCallback = std::function<std::deque<std::pair<size_t, uint32_t>>()>;
-
 
     CursedLayout(
         SetTimeCallback&& setTime,
@@ -48,12 +43,11 @@ public:
         GetVolumeCallback&& getVolume,
         SetMuteCallback&& setMute,
         GetMuteCallback&& getMute,
-        SetSpeedCallback&& setSpeed,
-        GetSpeedCallback&& getSpeed,
         GetElapsedSecString&& getElapsedSecString,
         GetTotalSecString&& getTotalSecString,
         AcquireChannelDataCallback&& acquireChannelData,
         AcquireChannelDataCallback&& acquireSpecData,
+        AcquireChannelDataCallback&& acquireCqtData,
         GetAudioSystemInfo&& getAudioSystemInfo,
         HexDataCallback&& hexData
     ) :
@@ -67,23 +61,17 @@ public:
     getVolumeCallback(getVolume),
     setMuteCallback(setMute),
     getMuteCallback(getMute),
-    setSpeedCallback(setSpeed),
-    getSpeedCallback(getSpeed),
     getElapsedSecString(getElapsedSecString),
     getTotalSecString(getTotalSecString),
     acquireChannelDataCallback(acquireChannelData),
     acquireSpecDataCallback(acquireSpecData),
+    acquireCqtDataCallback(acquireCqtData),
     getAudioSystemInfo(getAudioSystemInfo),
     hexDataCallback(hexData)
     {
-        instance = this;  // Set static pointer
-        signal(SIGWINCH, handle_resize);  // Register handler
-        mainWindow = std::make_unique<MainWindow>();
     }
 
-    ~CursedLayout() {
-        if (instance == this) instance = nullptr;
-    }
+    ~CursedLayout() = default;
 
     void resize();
     void mount();
@@ -107,25 +95,15 @@ private:
     SetMuteCallback setMuteCallback;
     GetMuteCallback getMuteCallback;
 
-    SetSpeedCallback setSpeedCallback;
-    GetSpeedCallback getSpeedCallback;
-
     GetElapsedSecString getElapsedSecString;
     GetTotalSecString getTotalSecString;
 
     AcquireChannelDataCallback acquireChannelDataCallback;
     AcquireChannelDataCallback acquireSpecDataCallback;
+    AcquireChannelDataCallback acquireCqtDataCallback;
 
     GetAudioSystemInfo getAudioSystemInfo;
 
     HexDataCallback hexDataCallback;
 
-    // === Static handler stuff ===
-    static CursedLayout* instance;
-
-    static void handle_resize(int sig) {
-        if (instance) {
-            instance->resize();
-        }
-    }
 };

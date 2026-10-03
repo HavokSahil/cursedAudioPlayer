@@ -47,9 +47,24 @@ Widget *Widget::marginLeftRel(double m) {
     return this;
 }
 
+WINDOW* Widget::_createWindow() {
+    const int y = getTopLeftY();
+    const int x = getTopLeftX();
+    int height = std::min(getHeight(), getmaxy(stdscr) - y);
+    int width = std::min(getWidth(), getmaxx(stdscr) - x);
+    if (_parent) {
+        if (!_parent->_window) return nullptr;
+        height = std::min(height, _parent->getTopLeftY() + getmaxy(_parent->_window) - y);
+        width = std::min(width, _parent->getTopLeftX() + getmaxx(_parent->_window) - x);
+    }
+    if (height <= 0 || width <= 0) return nullptr;
+    WINDOW* window = newwin(height, width, y, x);
+    if (window) leaveok(window, TRUE);
+    return window;
+}
+
 Widget* Widget::build() {
-    if (_window == nullptr)
-        _window = newwin(getHeight(), getWidth(), getTopLeftY(), getTopLeftX());
+    if (!_window) _window = _createWindow();
     else mvwin(_window, getTopLeftY(), getTopLeftX());
     return this;
 }
@@ -59,12 +74,12 @@ void Widget::setState(WidgetState s) {
 }
 
 void Widget::clear() {
-    wclear(_window);
+    if (_window) werase(_window);
 }
 
 void Widget::resize() {
-    delwin(_window);
-    _window = newwin(getHeight(), getWidth(), getTopLeftY(), getTopLeftX());
+    if (_window) delwin(_window);
+    _window = _createWindow();
     _commit = true;
     for (auto const &child: _children) {
         child->resize();
@@ -73,14 +88,14 @@ void Widget::resize() {
 
 int Widget::getHeight() {
     if (_height != -1) return _height;
-    if (_heightRel == 0.0) return getmaxy(stdscr);
+    if (_heightRel == 0.0) return _parent ? _parent->getHeight() : getmaxy(stdscr);
     if (_parent) return static_cast<int>(_parent->getHeight() * _heightRel);
     return static_cast<int>(getmaxy(stdscr) * _heightRel);
 }
 
 int Widget::getWidth() {
     if (_width != -1) return _width;
-    if (_widthRel == 0.0) return getmaxx(stdscr);
+    if (_widthRel == 0.0) return _parent ? _parent->getWidth() : getmaxx(stdscr);
     if (_parent) return static_cast<int>(_parent->getWidth() * _widthRel);
     return static_cast<int>(getmaxx(stdscr) * _widthRel);
 }
@@ -102,12 +117,12 @@ int Widget::getMarginLeft() {
 }
 
 int Widget::getTopLeftY() {
-    if (_parent) return _parent->getTopLeftY() + getMarginTop();
+    if (_parent) return std::clamp(_parent->getTopLeftY() + getMarginTop(), 0, getmaxy(stdscr) - 1);
     return getMarginTop();
 }
 
 int Widget::getTopLeftX() {
-    if (_parent) return _parent->getTopLeftX() + getMarginLeft();
+    if (_parent) return std::clamp(_parent->getTopLeftX() + getMarginLeft(), 0, getmaxx(stdscr) - 1);
     return getMarginLeft();
 }
 

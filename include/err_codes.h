@@ -5,7 +5,7 @@
 
 typedef int32_t Err;
 
-#define TAG "cap"
+#define TAG "cursedap"
 
 #define ERR_OK 0
 #define ERR_NOMEM (-1)

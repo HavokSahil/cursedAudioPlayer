@@ -23,7 +23,7 @@ public:
 
     void update() override;
     void handleEvent(int ch, MEVENT &event) override;
-    void add(std::shared_ptr<Widget> child) override {}
+    void add(std::shared_ptr<Widget>) override {}
 
     OnTouchCallback& getOnTouchCallback() { return _onTouch; }
     GetProgressCallback& getGetProgressCallback() { return _getProgressCallback; }

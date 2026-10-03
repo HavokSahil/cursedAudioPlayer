@@ -21,6 +21,15 @@ void Row::add(std::shared_ptr<Widget> child) {
     child->parent(this);  // Set parent
     _children.push_back(std::move(child));  // Add child to the container
 
+    _layout();
+}
+
+void Row::resize() {
+    _layout();
+    Widget::resize();
+}
+
+void Row::_layout() {
     const int rowWidth = getWidth();
     const int rowHeight = getHeight();
 
@@ -41,7 +50,7 @@ void Row::add(std::shared_ptr<Widget> child) {
     } else if (_mainAxisAlignment == MX_END) {
         startOffsetX = std::max(0, rowWidth - totalChildrenWidth);
     } else if (_mainAxisAlignment == MX_SPACE_BETWEEN && _children.size() > 1) {
-        _spacing = (rowWidth - trueChildrenWidth) / (_children.size() - 1);
+        _spacing = std::max(0, rowWidth - trueChildrenWidth) / static_cast<int>(_children.size() - 1);
     }
 
     // 3. Re-layout all children (left to right)
@@ -57,12 +66,8 @@ void Row::add(std::shared_ptr<Widget> child) {
             offsetY = std::max(0, rowHeight - chHeight);
         }
 
-        // Convert to relative offsets
-        double offsetXRel = rowWidth > 0 ? static_cast<double>(offsetX) / rowWidth : 0.0;
-        double offsetYRel = rowHeight > 0 ? static_cast<double>(offsetY) / rowHeight : 0.0;
-
-        ch->marginLeftRel(offsetXRel)
-          ->marginTopRel(offsetYRel);
+        ch->marginLeft(offsetX)
+          ->marginTop(offsetY);
 
         offsetX += ch->getWidth() + _spacing;
     }

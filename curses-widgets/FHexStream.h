@@ -2,6 +2,9 @@
 /// @brief Definition of the derived widget HexStream
 
 #pragma once
+#include <mutex>
+#include <cstdint>
+#include <chrono>
 #include <deque>
 #include <functional>
 
@@ -29,6 +32,7 @@ public:
 
 private:
     std::mutex _mutex;
+    std::chrono::steady_clock::time_point _nextUpdate{};
     /// @brief Number of bytes per line
     /// @remark Must be multiple of 4
     size_t _nBytes{8};

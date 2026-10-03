@@ -4,6 +4,8 @@
  */
 
 #include "RingBuffer.h"
+#include <algorithm>
+#include <stdexcept>
 
 RingBuffer::RingBuffer(const int channels, const int frames):
     _channels(channels),
@@ -11,13 +13,14 @@ RingBuffer::RingBuffer(const int channels, const int frames):
     _head(0),
     _tail(0)
 {
+    if (channels <= 0 || frames <= 0) throw std::invalid_argument("Invalid ring buffer size");
     const size_t bufferSize = (_frames + 1) * _channels + 1;
     this->pBuffer = std::make_unique<float[]>(bufferSize);
 }
 
 Err RingBuffer::write(const float *in, const size_t frameCount, size_t &framesWritten) {
     std::unique_lock lock(_mutex);
-    const size_t framesToWrite = std::min(_frames - framesInBuffer(), frameCount);
+    const size_t framesToWrite = std::min(_frames - _framesInBuffer(), frameCount);
     if (framesToWrite + _head > _frames) {                  // a round wrap is required
         const size_t szEnd = _frames - _head + 1;           // Size of buffer till end
         memcpy(this->pBuffer.get() + _head * _channels, in, szEnd * _channels * sizeof(float));
@@ -35,7 +38,7 @@ Err RingBuffer::write(const float *in, const size_t frameCount, size_t &framesWr
 Err RingBuffer::read(float *out, const size_t frameCount, size_t &framesRead) {
     std::unique_lock lock(_mutex);
     // If there is not enough frames; pad the data with zero
-    const size_t available = std::min(frameCount, framesInBuffer());
+    const size_t available = std::min(frameCount, _framesInBuffer());
     if (_tail + available > _frames) {              // a round wrap is required
         const size_t szEnd = _frames - _tail + 1;   // Size till the end
         memcpy(out, pBuffer.get() + _tail * _channels, szEnd * _channels * sizeof(float));
@@ -46,42 +49,47 @@ Err RingBuffer::read(float *out, const size_t frameCount, size_t &framesRead) {
         memcpy(out, pBuffer.get() + _tail * _channels, available * _channels * sizeof(float));
         _tail += available;                         // update the read head
     }
-    // const size_t remaining = frameCount - available;    // Pad the remaining space with zero
-    // memset(out + available * _channels, 0, remaining * _channels * sizeof(float));
+    std::fill_n(out + available * _channels, (frameCount - available) * _channels, 0.0f);
     framesRead = available;
     return ERR_OK;
 }
 
 Err RingBuffer::readQuiet(float *out, const size_t frameCount, size_t &framesRead) {    // Just the read without the cursor update
     std::unique_lock lock(_mutex);
-    const size_t available = std::min(frameCount, framesInBuffer());
+    const size_t available = std::min(frameCount, _framesInBuffer());
     if (_tail + available > _frames) {
         const size_t szEnd = _frames - _tail + 1;
-        memcpy(out, pBuffer.get() + _tail, szEnd * _channels * sizeof(float));
+        memcpy(out, pBuffer.get() + _tail * _channels, szEnd * _channels * sizeof(float));
         const size_t szStart = available - szEnd;
-        memcpy(out + szEnd, pBuffer.get(), szStart * _channels * sizeof(float));
+        memcpy(out + szEnd * _channels, pBuffer.get(), szStart * _channels * sizeof(float));
     } else {
-        memcpy(out, pBuffer.get() + _tail, available * _channels * sizeof(float));
+        memcpy(out, pBuffer.get() + _tail * _channels, available * _channels * sizeof(float));
     }
-    // const size_t remaining = frameCount - available;    // Pad the remaining space with zero
-    // memset(out, 0, remaining * _channels * sizeof(float));
+    std::fill_n(out + available * _channels, (frameCount - available) * _channels, 0.0f);
 
     framesRead = available;
     return ERR_OK;
 }
 
 size_t RingBuffer::framesInBuffer() const {
+    std::lock_guard lock(_mutex);
+    return _framesInBuffer();
+}
+
+size_t RingBuffer::_framesInBuffer() const {
     return (_head < _tail) ?
         _frames - _tail + _head + 1:
         _head - _tail;
 }
 
 bool RingBuffer::empty() const {
+    std::lock_guard lock(_mutex);
     return _head == _tail;
 }
 
 bool RingBuffer::full() const {
-    return framesInBuffer() == _frames;
+    std::lock_guard lock(_mutex);
+    return _framesInBuffer() == _frames;
 }
 
 size_t RingBuffer::size() const {
@@ -89,5 +97,6 @@ size_t RingBuffer::size() const {
 }
 
 void RingBuffer::reset() {
+    std::lock_guard lock(_mutex);
     _head = _tail = 0;
 }

@@ -1,0 +1,25 @@
+.TH CURSEDAP 1 "October 2026" "cursedap 1.1.0" "User Commands"
+.SH NAME
+cursedap \- ncurses audio player with waveform, spectrum and pitch classes
+.SH SYNOPSIS
+.B cursedap
+.I audio_file
+.RI [ chunk_size ]
+.SH DESCRIPTION
+Plays WAV, MP3 and FLAC files in a green/red terminal console. Waveform,
+FFT spectrum and octave-folded CQT pitch classes are displayed together.
+Playback starts paused. A terminal of at least 80 columns by 24 rows is required.
+.SH OPTIONS
+.TP
+.I chunk_size
+Processing and FFT size: a power of two from 64 to 1048576 (default 1024).
+.SH CONTROLS
+Space toggles playback. Left or b and Right or f seek ten seconds.
+Up, + or = raises volume; Down or - lowers it. m toggles mute.
+Home and End seek to the start and end. q or Escape quits.
+Mouse clicks operate buttons and progress bars. Click text and use [ or ] to scroll.
+.SH AUTHORS
+Sahil Raj <havoksahil@gmail.com>
+.SH LICENSE
+GPL version 3. Bundled ECQT, PFFFT and miniaudio notices are installed
+in /usr/share/licenses/cursedap.

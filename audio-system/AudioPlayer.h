@@ -1,6 +1,8 @@
 #pragma once
 
 #include <memory>
+#include <atomic>
+#include <mutex>
 #include <err_codes.h>
 #include <utility>
 #include <cstring>
@@ -35,7 +37,8 @@ public:
 
 private:
     ///@brief The state of the audio player
-    AudioSinkState _state = STOPPED;
+    std::atomic<AudioSinkState> _state{STOPPED};
+    std::mutex _mutex;
     /// @brief Callback for data acquisition
     DataCallback _dataCallback;
     /// @brief Callback for getting infos on frames availability

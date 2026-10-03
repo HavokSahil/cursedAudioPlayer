@@ -1,6 +1,7 @@
 #include "AudioDecoder.h"
 #include <err_codes.h>
 #include <miniaudio.h>
+#include <stdexcept>
 
 AudioDecoder::AudioDecoder(const std::string& filename):
     _filename(filename),
@@ -11,13 +12,14 @@ AudioDecoder::AudioDecoder(const std::string& filename):
     _decoder = std::make_unique<ma_decoder>();
     if (ma_decoder_init_file(_filename.c_str(), &decoderConfig, _decoder.get()) != MA_SUCCESS) {
         LOGE("Failed to init decoder");
-        _state = FINISHED;
+        throw std::runtime_error("Failed to decode: " + filename);
     }
     ma_uint64 total_frames = 0;
 
     if (ma_decoder_get_length_in_pcm_frames(_decoder.get(), &total_frames) != MA_SUCCESS) {
         LOGE("Failed to obtain total frame length");
-        _state = FINISHED;
+        ma_decoder_uninit(_decoder.get());
+        throw std::runtime_error("Failed to read audio length: " + filename);
     };
 
     _totalFrames = total_frames;
@@ -28,16 +30,18 @@ AudioDecoder::~AudioDecoder() {
 }
 
 Err AudioDecoder::read(float *out, const size_t frameCount, size_t &framesRead) {
-    ma_uint64 frames_read;
+    ma_uint64 frames_read = 0;
     if (_decoder->readPointerInPCMFrames == _totalFrames) {
         framesRead = 0;
         return ERR_OK;
     }
-    if (ma_decoder_read_pcm_frames(_decoder.get(), out, frameCount, &frames_read) != MA_SUCCESS) {
+    const auto result = ma_decoder_read_pcm_frames(_decoder.get(), out, frameCount, &frames_read);
+    if (result != MA_SUCCESS && result != MA_AT_END) {
         framesRead = 0;
         return ERR_UNKNOWN;
     }
-    if (getCurrentPcmFrame() == getTotalPcmFrames()) {
+    _currentFrame = _decoder->readPointerInPCMFrames;
+    if (result == MA_AT_END || getCurrentPcmFrame() == getTotalPcmFrames()) {
         _state = FINISHED;
     }
     framesRead = frames_read;
@@ -51,11 +55,12 @@ size_t AudioDecoder::getTotalPcmFrames() const {
 std::chrono::milliseconds AudioDecoder::getTotalDurationMs() const {
     const auto sampleRate = static_cast<double>(getSampleRate());
     const auto totalFrames = static_cast<double>(getTotalPcmFrames());
-    const uint32_t milliseconds_u = 1000.0 * totalFrames / sampleRate;
+    const int64_t milliseconds_u = 1000.0 * totalFrames / sampleRate;
     return std::chrono::milliseconds(milliseconds_u);
 }
 
 bool AudioDecoder::jumpToTime(const std::chrono::milliseconds time) {
+    if (time.count() < 0) return false;
     const auto sampleRate = static_cast<double>(getSampleRate());
     const auto milliseconds_d = static_cast<double>(time.count());
     const auto frame_d = milliseconds_d * sampleRate / 1000.0 ;
@@ -64,6 +69,8 @@ bool AudioDecoder::jumpToTime(const std::chrono::milliseconds time) {
     if (ma_decoder_seek_to_pcm_frame(_decoder.get(), frame) != MA_SUCCESS) {
         return false;
     }
+    _currentFrame = frame;
+    _state = frame < _totalFrames ? READY : FINISHED;
     return true;
 }
 
@@ -72,6 +79,8 @@ bool AudioDecoder::jumpToFrame(const size_t frame) {
     if (ma_decoder_seek_to_pcm_frame(_decoder.get(), frame) != MA_SUCCESS) {
         return false;
     }
+    _currentFrame = frame;
+    _state = frame < _totalFrames ? READY : FINISHED;
     return true;
 }
 
@@ -79,6 +88,7 @@ void AudioDecoder::reset() {
     if (ma_decoder_seek_to_pcm_frame(_decoder.get(), 0)!= MA_SUCCESS) {
         _state = FINISHED;
     } else {
+        _currentFrame = 0;
         _state = READY;
     };
 }
@@ -86,12 +96,12 @@ void AudioDecoder::reset() {
 std::chrono::milliseconds AudioDecoder::getElapsedMs() const {
     const auto currentFrame = static_cast<double>(getCurrentPcmFrame());
     const auto sampleRate = static_cast<double>(getSampleRate());
-    const uint32_t milliseconds_u = 1000.0 * currentFrame / sampleRate;
+    const int64_t milliseconds_u = 1000.0 * currentFrame / sampleRate;
     return std::chrono::milliseconds(milliseconds_u);
 }
 
 size_t AudioDecoder::getCurrentPcmFrame() const {
-    return _decoder->readPointerInPCMFrames;
+    return _currentFrame;
 }
 
 size_t AudioDecoder::getChannels() const {

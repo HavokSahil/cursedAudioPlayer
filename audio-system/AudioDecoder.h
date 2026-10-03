@@ -2,6 +2,7 @@
 
 #include "IAudioSource.h"
 #include <memory>
+#include <atomic>
 
 struct ma_decoder;
 
@@ -36,7 +37,8 @@ private:
     /// @brief The path of the audio file
     std::string _filename;
     /// @brief The current state of the decoder.
-    AudioSourceState _state;
+    std::atomic<AudioSourceState> _state;
+    std::atomic<size_t> _currentFrame{0};
     /// @brief Miniaudio Decoder struct.
     std::unique_ptr<ma_decoder> _decoder;
     /// @brief Total frames in the file.

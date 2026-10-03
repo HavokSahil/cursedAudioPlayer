@@ -1,8 +1,8 @@
 #include "AudioPlayer.h"
 #include <miniaudio.h>
 #include <numeric>
+#include <stdexcept>
 
-static int counter = 0;
 
 AudioPlayer::AudioPlayer(const size_t sampleRate, const size_t channels, DataCallback dataCallback, QueryCallback queryCallback):
 _dataCallback(std::move(dataCallback)), _queryCallback(std::move(queryCallback))
@@ -12,17 +12,13 @@ _dataCallback(std::move(dataCallback)), _queryCallback(std::move(queryCallback))
     config.playback.format = ma_format_f32;
     config.playback.channels = channels;
     config.sampleRate = sampleRate;
-    config.dataCallback = [](ma_device* pDevice, void* pOutput, const void* pInput, ma_uint32 frameCount) {
+    config.dataCallback = [](ma_device* pDevice, void* pOutput, const void*, ma_uint32 frameCount) {
         auto* self = static_cast<AudioPlayer*>(pDevice->pUserData);
-        size_t framesRead;
-        if (self->getState() == PLAYING && self->_queryCallback() < frameCount)
-            self->setState(BUFFERING);      // Switch to buffering state when the number of frames in buffer is low
-        if (self->getState() == BUFFERING && self->_queryCallback() >= frameCount)
-            self->setState(PLAYING);        // Switch to playing mode, when there is enough frame in buffer
-        if (self->getState() == BUFFERING) {
-            std::memset(pOutput, 0, frameCount * sizeof(float) * pDevice->playback.channels);
-        } else if (self->_dataCallback(static_cast<float*>(pOutput), frameCount, framesRead) != MA_SUCCESS) {
-            self->setState(STOPPED);        // Stop the player in case of error
+        std::memset(pOutput, 0, frameCount * sizeof(float) * pDevice->playback.channels);
+        size_t framesRead = 0;
+        if (self->getState() == PLAYING &&
+            self->_dataCallback(static_cast<float*>(pOutput), frameCount, framesRead) != ERR_OK) {
+            self->setState(STOPPED);
         }
     };
 
@@ -30,7 +26,7 @@ _dataCallback(std::move(dataCallback)), _queryCallback(std::move(queryCallback))
 
     if (ma_device_init(nullptr, &config, _pDevice.get()) != MA_SUCCESS) {
         LOGI("Failed to init audio device");
-        return;
+        throw std::runtime_error("Failed to initialize audio device");
     }
 
     LOGI("Device initialized");
@@ -53,18 +49,21 @@ void AudioPlayer::setState(const AudioSinkState state) {
 
 
 Err AudioPlayer::play() {
+    std::lock_guard lock(_mutex);
     if (_state != PAUSED) return ERR_UNKNOWN;
     LOGI("Playing...");
+    _state = PLAYING;
     if (ma_device_start(_pDevice.get()) == MA_SUCCESS) {
-        _state = PLAYING;
         LOGI("Playing successfully");
         return ERR_OK;
     }
+    _state = PAUSED;
     LOGI("Failed to start audio device.");
     return ERR_UNKNOWN;
 }
 
 Err AudioPlayer::pause() {
+    std::lock_guard lock(_mutex);
     if (_state != PLAYING) return ERR_UNKNOWN;
     LOGI("Pausing...");
     if (ma_device_stop(_pDevice.get()) == MA_SUCCESS) {

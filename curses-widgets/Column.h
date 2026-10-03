@@ -21,9 +21,11 @@ public:
     void handleEvent(int ch, MEVENT &event) override;
     void add(std::shared_ptr<Widget> child) override;
 
+    void resize() override;
     int getSpacing();
 
 private:
+    void _layout();
     int _spacing{0};
     MainAxisAlignment _mainAxisAlignment{MX_CENTER};
     CrossAxisAlignment _crossAxisAlignment{CRX_CENTER};

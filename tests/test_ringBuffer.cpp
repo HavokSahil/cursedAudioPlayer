@@ -65,9 +65,11 @@ int test_ring_buffer() {
     CHECK_ERR(buffer.readQuiet(samplesRead, 50, quietRead));
     assert(quietRead == 50);
     assert(buffer.framesInBuffer() == prevFrames);  // tail not moved
+    for (size_t i = 0; i < quietRead * channels; ++i)
+        assert(samplesRead[i] == samplesWrite[512 * channels + i]);
 
     // 10. Test zero-padding
-    memset(samplesRead, 0, sizeof(samplesRead));
+    std::fill_n(samplesRead, 2048, -99.0f);
     CHECK_ERR(buffer.read(samplesRead, totalFrames, framesRead));
     assert(framesRead < totalFrames);
     for (size_t i = framesRead * channels; i < totalFrames * channels; ++i) {

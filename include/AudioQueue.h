@@ -3,29 +3,39 @@
 #include <vector>
 #include <deque>
 #include <mutex>
+#include <algorithm>
+#include <stdexcept>
 
-static size_t gbinSizeCounter = 0;
+
 
 template<typename I>
 class AudioQueue {
 
 public:
     AudioQueue(size_t capacity, size_t binSize)
-        : _capacity(capacity),
-          _binSize(binSize),
-          _queue(std::deque<I>(capacity, I(0))) {}
+        : _binSize(binSize),
+          _capacity(capacity),
+          _queue(std::deque<I>(capacity, I(0))) {
+        if (capacity == 0 || binSize == 0) throw std::invalid_argument("Invalid audio queue size");
+    }
 
     void pushBuffer(I* buffer, size_t frames) {
         std::lock_guard<std::mutex> lock(_mutex);
-        I cumVal = I(0);
         for (size_t i = 0; i < frames; ++i) {
-            cumVal += buffer[i];
-            gbinSizeCounter++;
-            if (gbinSizeCounter % _binSize == 0) {
-                pushPointUnlocked(cumVal / static_cast<I>(_binSize));
-                gbinSizeCounter = 0;
+            _sum += buffer[i];
+            if (++_count == _binSize) {
+                pushPointUnlocked(_sum / static_cast<I>(_binSize));
+                _sum = I(0);
+                _count = 0;
             }
         }
+    }
+
+    void reset() {
+        std::lock_guard<std::mutex> lock(_mutex);
+        std::fill(_queue.begin(), _queue.end(), I(0));
+        _sum = I(0);
+        _count = 0;
     }
 
     void pushPoint(I data) {
@@ -54,6 +64,8 @@ private:
         _queue.push_back(data);
     }
 
+    I _sum{0};
+    size_t _count{0};
     size_t _binSize{16};
     size_t _capacity;
     mutable std::mutex _mutex;

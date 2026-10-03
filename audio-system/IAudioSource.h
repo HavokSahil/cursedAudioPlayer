@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chrono>
+#include <string>
 #include "err_codes.h"
 
 /// @enum AudioSourceState

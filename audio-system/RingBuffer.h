@@ -12,7 +12,8 @@
 
 /// @class RingBuffer
 class RingBuffer {
-    std::mutex _mutex;
+    mutable std::mutex _mutex;
+    size_t _framesInBuffer() const;
     /// @brief Pointer for float buffer.
     std::unique_ptr<float[]> pBuffer;
     /// @brief Number of channels.

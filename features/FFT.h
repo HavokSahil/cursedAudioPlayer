@@ -6,6 +6,8 @@
 #include <memory>
 #include <cmath>
 #include <mutex>
+#include <stdexcept>
+#include <numbers>
 
 #include "PublisherBase.h"
 
@@ -15,7 +17,10 @@ public:
     explicit FFT(size_t const size):
         _size(size),
         _mem(std::make_unique<std::complex<T>[]>(size))
-    {}
+    {
+        if (size == 0 || (size & (size - 1)) != 0)
+            throw std::invalid_argument("FFT size must be a power of two");
+    }
 
     static size_t iMSB(const size_t num) {
         size_t nBits = 0;
@@ -26,10 +31,9 @@ public:
         return nBits;
     }
 
-    static size_t _bitReverse(const size_t num) {
-        const size_t nBits = iMSB(num);
+    static size_t _bitReverse(const size_t num, const size_t nBits) {
         size_t reverse = 0;
-        for (int i = 0; i<nBits; i++) {
+        for (size_t i = 0; i < nBits; i++) {
             reverse = (reverse << 1) | ((num >> i) & 1);
         }
         return reverse;
@@ -70,13 +74,13 @@ public:
     void compute(const bool inverse = false) {
         std::unique_lock lock(_mutex);
         for (size_t i = 0; i < _size; ++i) {
-            size_t j = _bitReverse(i);
+            const size_t j = _bitReverse(i, iMSB(_size) - 1);
             if (i < j) std::swap(_mem[i], _mem[j]);
         }
 
-        for (size_t s = 1; (1U << s) <= _size; ++s) {
-            const size_t m = 1U << s;
-            const std::complex<T> wm = std::polar(static_cast<T>(1.0), static_cast<T>((inverse ? -1 : 1) * 2 * M_PI / m));
+        for (size_t s = 1; (size_t(1) << s) <= _size; ++s) {
+            const size_t m = size_t(1) << s;
+            const std::complex<T> wm = std::polar(static_cast<T>(1.0), static_cast<T>((inverse ? 1 : -1) * 2 * std::numbers::pi / m));
 
             for (size_t k = 0; k < _size; k += m) {
                 std::complex<T> w(1.0, 0.0);

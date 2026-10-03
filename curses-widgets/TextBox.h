@@ -1,6 +1,7 @@
 #pragma once
 
 #include <functional>
+#include <algorithm>
 #include <string>
 
 #include "Widget.h"
@@ -13,6 +14,7 @@ public:
     TextBox() = default;
     ~TextBox() override;
 
+    Widget* padding(int value) { _padding = std::max(0, value); return this; }
     Widget* text(const char* c) { _text = c; return this; }
     Widget* getTextCb(GetTextCb &&callback) { _getTextCb = std::move(callback); return this; }
     Widget* color(Color c) { _color = c; return this; }
@@ -24,7 +26,7 @@ public:
 private:
     bool _selected{false};
     int _strOffset{0};
-    bool _active{false};
+    int _padding{1};
     bool color_init{true};
     std::string _text;
     GetTextCb _getTextCb{[&]()->std::string { return _text; }};

@@ -3,9 +3,10 @@
 //
 
 #include "TextBox.h"
+#include <algorithm>
 
 TextBox::~TextBox() {
-    delwin(_window);
+    if (_window) delwin(_window);
 }
 
 void TextBox::update() {
@@ -19,32 +20,35 @@ void TextBox::update() {
         _text = s;
         _commit = true;
     }
-    int mlen = std::min(getWidth() - 2, static_cast<int>(s.length()));
+    if (!_window) return;
+    _strOffset = std::clamp(_strOffset, 0, static_cast<int>(s.size()));
+    int mlen = std::max(0, std::min(getmaxx(_window) - 2 * _padding, static_cast<int>(s.length()) - _strOffset));
     if (_commit) {
-        wclear(_window);
+        werase(_window);
         wattron(_window, COLOR_PAIR(_selected? _id + 1: _id));
         wattron(_window, A_BOLD);
-        mvwprintw(_window, 0, 1, "%s", s.substr(_strOffset, mlen).c_str());
+        mvwprintw(_window, 0, _padding, "%s", s.substr(_strOffset, mlen).c_str());
         wattroff(_window, A_BOLD);
         wattroff(_window, COLOR_PAIR(_selected? _id + 1: _id));
-        wrefresh(_window);
+        wnoutrefresh(_window);
         _commit = false;
     }
 }
 
 void TextBox::handleEvent(int ch, MEVENT &event) {
+    if (!_window) return;
     if (_selected) {
-        if (ch == KEY_LEFT) {
+        if (ch == '[') {
             _strOffset = std::max(_strOffset - 1, 0); _commit = true;
-        } else if (ch == KEY_RIGHT && (_text.length() - _strOffset >= getWidth() - 2)) {
+        } else if (ch == ']' && static_cast<int>(_text.length()) - _strOffset > std::max(0, getWidth() - 2 * _padding)) {
             _strOffset++; _commit = true;
         }
     }
     if (ch == KEY_MOUSE && (event.bstate & BUTTON1_PRESSED)) {
         if (event.y >= getTopLeftY() &&
-            event.y < getTopLeftY() + getHeight() &&
+            event.y < getTopLeftY() + getmaxy(_window) &&
             event.x >= getTopLeftX() &&
-            event.x < getTopLeftX() + getWidth())
+            event.x < getTopLeftX() + getmaxx(_window))
         {
             _selected = !_selected;
         } else {

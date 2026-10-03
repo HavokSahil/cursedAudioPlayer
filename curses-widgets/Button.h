@@ -55,16 +55,15 @@ class Button final : public Widget {
 
     void update() override;
     void handleEvent(int ch, MEVENT &event) override;
-    void add(std::shared_ptr<Widget> child) override {}
+    void add(std::shared_ptr<Widget>) override {}
 
   private:
     bool _active{false};
-    bool _showingHelp{false};
     std::string _activeText;
     std::string _inactiveText;
     ButtonCallback _callback{[&](bool) { _active = !_active; }};
     GetButtonStatusCb _getStatusCb{[&]() -> bool { return _active; }};
-    char _triggerKey;
+    char _triggerKey{0};
     Color _color{COLOR_GREEN};
     Color _bgColor{COLOR_BLACK};
 };

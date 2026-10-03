@@ -1,0 +1,113 @@
+name: Linux release
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  source:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate tag and archive source
+        shell: bash
+        run: |
+          version=$(sed -n 's/^project(cursedAudioPlayer VERSION \([^ ]*\).*/\1/p' CMakeLists.txt)
+          test "$GITHUB_REF_NAME" = "v$version"
+          mkdir artifacts
+          git archive --format=tar --prefix="cursedap-$version/" HEAD | gzip -n > "artifacts/cursedap-$version.tar.gz"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: source
+          path: artifacts/*
+  packages:
+    needs: source
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - distro: debian12
+            image: debian:bookworm
+            format: DEB
+            setup: apt-get update && apt-get install -y build-essential cmake libncurses-dev dpkg-dev file
+          - distro: ubuntu24.04
+            image: ubuntu:24.04
+            format: DEB
+            setup: apt-get update && apt-get install -y build-essential cmake libncurses-dev dpkg-dev file
+          - distro: fedora43
+            image: fedora:43
+            format: RPM
+            setup: dnf install -y gcc gcc-c++ cmake make ncurses-devel rpm-build
+          - distro: opensuse-leap16
+            image: opensuse/leap:16.0
+            format: RPM
+            setup: zypper --non-interactive install gcc-c++ cmake make ncurses-devel rpm-build
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and test distro package
+        env:
+          IMAGE: ${{ matrix.image }}
+          SETUP: ${{ matrix.setup }}
+          FORMAT: ${{ matrix.format }}
+          DISTRO: ${{ matrix.distro }}
+        run: |
+          mkdir -p artifacts
+          docker run --rm -v "$PWD:/src" -w /src "$IMAGE" bash -c "$SETUP && packaging/build-linux.sh '$FORMAT' /tmp/package && cp /tmp/package/*.$(test "$FORMAT" = DEB && echo deb || echo rpm) /src/artifacts/"
+          for file in artifacts/*; do mv "$file" "${file%.*}-$DISTRO.${file##*.}"; done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: package-${{ matrix.distro }}
+          path: artifacts/*
+  arch:
+    needs: source
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: source
+          path: artifacts
+      - name: Render and build Arch package
+        run: |
+          python3 packaging/arch/render.py artifacts/cursedap-*.tar.gz artifacts/aur
+          docker run --rm -v "$PWD:/src" -w /src archlinux:base-devel bash -c '
+            pacman -Syu --noconfirm cmake python namcap
+            useradd -m builder
+            cp -r /src/artifacts /home/builder/package
+            chown -R builder:builder /home/builder/package
+            cd /home/builder/package/aur
+            su builder -c "makepkg --printsrcinfo > .SRCINFO"
+            cp ../cursedap-*.tar.gz .
+            su builder -c "makepkg --noconfirm"
+            namcap PKGBUILD *.pkg.tar.zst
+            cp *.pkg.tar.zst /src/artifacts/
+            cp .SRCINFO /src/artifacts/aur/
+          '
+          tar -czf artifacts/cursedap-aur.tar.gz -C artifacts/aur PKGBUILD .SRCINFO
+          rm -r artifacts/aur
+      - uses: actions/upload-artifact@v4
+        with:
+          name: arch
+          path: |
+            artifacts/*.pkg.tar.zst
+            artifacts/cursedap-aur.tar.gz
+  publish:
+    needs: [source, packages, arch]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - name: Publish release and checksums
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          cd artifacts
+          sha256sum * > SHA256SUMS
+          gh release create "$GITHUB_REF_NAME" --verify-tag --title "cursedap ${GITHUB_REF_NAME#v}" --notes 'Smooth ncurses rendering with simultaneous waveform, FFT and ECQT pitch classes. Binary renamed to cursedap. Choose the package matching your distro; AUR submission is pending account availability.' *

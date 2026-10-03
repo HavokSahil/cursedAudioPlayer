@@ -1,12 +1,11 @@
 #pragma once
 #include <cstring>
+#include <algorithm>
 #include <functional>
-#include <thread>
 
 #include "Widget.h"
 
 typedef short Color;
-typedef std::vector<std::pair<int, int>> V;
 
 class BarPlot final: public Widget {
 
@@ -22,9 +21,13 @@ public:
     BarPlot* nBins(int n) {
         _nBins = n;
         _datapoints = std::make_unique<float[]>(_nBins);
-        _prevEndpoints = std::make_unique<V>(_nBins, std::pair<int, int>(0, 0));
+        _displaypoints = std::make_unique<float[]>(_nBins);
+        std::fill_n(_displaypoints.get(), _nBins, _minY < 0 && _maxY > 0 ? 0.0f : static_cast<float>(_minY));
         return this;
     }
+    BarPlot* smoothing(double value) { _smoothing = std::clamp(value, 0.0, 1.0); return this; }
+    BarPlot* binLabels(std::vector<std::string> labels) { _binLabels = std::move(labels); return this; }
+    BarPlot* axisLabel(std::function<std::string()> cb) { _axisLabel = std::move(cb); return this; }
     BarPlot* binWidth(int m) { _binWidth = m; return this; }
     BarPlot* color(Color c) { _color = c; return this; }
     BarPlot* bgColor(Color c) { _bgColor = c; return this; }
@@ -41,10 +44,6 @@ public:
     Color getBgColor() { return _bgColor; }
 
 private:
-    std::atomic<bool> _isRunning{false};
-    std::thread _thread;
-    std::mutex _mutex;
-    std::atomic<bool> _needsRedraw = false;
     bool color_init{true};
     std::string _title{"Bar Plot"};
 
@@ -52,13 +51,13 @@ private:
     double _maxY{1.0};
     int _nBins{0};
     int _binWidth{-1};
-    Color _color;
-    Color _bgColor;
+    Color _color{COLOR_GREEN};
+    Color _bgColor{COLOR_BLACK};
     std::unique_ptr<float[]> _datapoints{nullptr};
-    std::unique_ptr<V> _prevEndpoints{nullptr};
+    std::vector<std::string> _binLabels;
+    double _smoothing{1.0};
+    std::unique_ptr<float[]> _displaypoints{nullptr};
+    std::function<std::string()> _axisLabel{[]() { return std::string(); }};
     AcquireDataCb _acquireDataCb{[&](float* buff) { memset(buff, 0, _nBins*sizeof(float)); }};
 
-    void _start();
-    void _stop();
-    void _loop();
 };

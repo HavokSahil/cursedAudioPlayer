@@ -1,6 +1,8 @@
 #pragma once
 
 #include <memory>
+#include <functional>
+#include <cstdint>
 #include <vector>
 
 #include "Widget.h"
@@ -16,14 +18,13 @@ public:
     void handleEvent(int ch, MEVENT &event) override;
     void add(std::shared_ptr<Widget> child) override;
 
+    void keyCb(std::function<void(int)> cb) { _keyCallback = std::move(cb); }
     void run();
     bool isRunning();
 private:
+    std::function<void(int)> _keyCallback{[](int) {}};
     MEVENT _event{};
     bool _running = false;
 
-    std::vector<std::shared_ptr<Widget>> _widgets;
-    uint64_t _timeoutMs{50};
-    WidgetState _state{READY};
-    bool _commit{true};
+    int _timeoutMs{16};
 };

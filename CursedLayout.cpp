@@ -1,4 +1,7 @@
 #include "CursedLayout.h"
+#include <algorithm>
+#include <cstdio>
+#include <filesystem>
 
 #include "BarPlot.h"
 #include "BoxedContainer.h"
@@ -9,219 +12,209 @@
 #include "Row.h"
 #include "TextBox.h"
 
-// Static member definition
-CursedLayout *CursedLayout::instance = nullptr;
-
 void CursedLayout::mount() {
     mainWindow = std::make_unique<MainWindow>();
     mainWindow->build();
 
-    /// @brief Main-Column widget
     auto mainCol = std::make_shared<Column>();
-    mainCol->parent(mainWindow.get())->widthRel(0.95);
+    mainCol->parent(mainWindow.get())->widthRel(1.0);
     mainWindow->add(mainCol);
 
-    /// @brief First row
+    // Header: one stable identity, one live transport state.
+    auto header = std::make_shared<Row>();
+    header->height(1)->widthRel(1.0);
+    header->mainAxisAlignment(MX_SPACE_BETWEEN);
+    mainCol->add(header);
+
+    auto title = std::make_shared<TextBox>();
+    title->height(1)->width(28);
+    title->text("CURSEDAP :: AUDIO CONSOLE");
+    header->add(title);
+
+    auto status = std::make_shared<TextBox>();
+    status->height(1)->width(24);
+    status->getTextCb([this]() {
+        return std::string(getPlaybackCallback() ? "[ RUN ]" : "[ IDLE ]") +
+            (getMuteCallback() ? "  / MUTED" : "  / PCM");
+    });
+    header->add(status);
+
+    // Telemetry is grouped in two inset ncurses windows.
     auto metaRow = std::make_shared<Row>();
-    metaRow->parent(mainCol.get())->heightRel(0.3);
+    metaRow->height(8)->widthRel(1.0);
     metaRow->mainAxisAlignment(MX_SPACE_BETWEEN);
     mainCol->add(metaRow);
 
-    // @brief Add file picker widget
-    // TODO: Complete the hex dump widget
+    auto hexPanel = std::make_shared<BoxedContainer>();
+    hexPanel->heightRel(1.0)->widthRel(0.49);
+    hexPanel->title(" PCM::HEX / BINNED ");
+    metaRow->add(hexPanel);
+
     auto hexStream = std::make_shared<FHexStream>();
-    hexStream->parent(metaRow.get())->widthRel(0.5)->heightRel(1.0);
+    hexStream->parent(hexPanel.get());
     hexStream->nBytes(8);
     hexStream->nLines(6);
     hexStream->bytesCb(std::move(hexDataCallback));
     hexStream->mount();
-    metaRow->add(hexStream);
+    hexPanel->add(hexStream);
 
-    // TODO: Complete the file metadata implementation
+    auto sourcePanel = std::make_shared<BoxedContainer>();
+    sourcePanel->heightRel(1.0)->widthRel(0.49);
+    sourcePanel->title(" SOURCE::PCM ");
+    metaRow->add(sourcePanel);
+
     auto metaCol = std::make_shared<Column>();
-    metaCol->parent(metaRow.get())->widthRel(0.3)->heightRel(1.0);
-    metaCol->mainAxisAlignment(MX_CENTER);
-    metaRow->add(metaCol);
+    metaCol->parent(sourcePanel.get());
+    metaCol->mainAxisAlignment(MX_START);
+    sourcePanel->add(metaCol);
 
-    auto titleTextBox = std::make_shared<TextBox>();
-    titleTextBox->parent(metaRow.get())->height(1)->widthRel(1.0);
-    titleTextBox->text("File Metadata");
-    titleTextBox->color(COLOR_GREEN);
-    titleTextBox->bgColor(COLOR_BLACK);
-    metaCol->add(titleTextBox);
-
-    auto addMetaDataRow = [&](const char *label, const char *dValue,
-                              std::function<std::string()> &&callback) {
-        /// @brief Sample Rate
-        auto outerRow = std::make_shared<Row>();
-        outerRow->parent(metaCol.get())->widthRel(1.0)->height(1);
-        outerRow->mainAxisAlignment(MX_SPACE_BETWEEN);
-        metaCol->add(outerRow);
+    auto addMetaDataRow = [&](const char* label, std::function<std::string()>&& callback) {
+        auto row = std::make_shared<Row>();
+        row->height(1)->widthRel(1.0);
+        row->mainAxisAlignment(MX_SPACE_BETWEEN);
+        metaCol->add(row);
 
         auto labelWidget = std::make_shared<TextBox>();
-        labelWidget->parent(outerRow.get())->height(1)->widthRel(0.3);
+        labelWidget->height(1)->widthRel(0.3);
         labelWidget->text(label);
-        labelWidget->color(COLOR_GREEN);
-        labelWidget->bgColor(COLOR_BLACK);
-        outerRow->add(labelWidget);
+        row->add(labelWidget);
 
         auto valueWidget = std::make_shared<TextBox>();
-        valueWidget->parent(outerRow.get())->height(1)->widthRel(0.7);
-        valueWidget->text(dValue);
-        valueWidget->color(COLOR_RED);
-        valueWidget->bgColor(COLOR_BLACK);
+        valueWidget->height(1)->widthRel(0.7);
+        valueWidget->color(COLOR_WHITE);
         valueWidget->getTextCb(std::move(callback));
-        outerRow->add(valueWidget);
+        row->add(valueWidget);
     };
-
-    addMetaDataRow("Filename", "NA",
-                   [&]() -> std::string { return getAudioSystemInfo().name; });
-    addMetaDataRow("Format", "NA", [&]() -> std::string {
-        return getAudioSystemInfo().format;
-    });
-    addMetaDataRow("Sample Rate", "NA", [&]() -> std::string {
-        return std::to_string(getAudioSystemInfo().sample_rate);
-    });
-    addMetaDataRow("Channels", "NA", [&]() -> std::string {
-        return std::to_string(getAudioSystemInfo().channels);
-    });
-    addMetaDataRow("Total Frames", "NA", [&]() -> std::string {
-        return std::to_string(getAudioSystemInfo().total_frames);
-    });
-    addMetaDataRow("Bitrate(kbps)", "NA", [&]() -> std::string {
-        return std::to_string(getAudioSystemInfo().bitrate);
+    addMetaDataRow("File", [this]() { return std::filesystem::path(getAudioSystemInfo().name).filename().string(); });
+    addMetaDataRow("Format", [this]() { return std::string(getAudioSystemInfo().format); });
+    addMetaDataRow("Hz", [this]() { return std::to_string(getAudioSystemInfo().sample_rate); });
+    addMetaDataRow("Ch", [this]() { return std::to_string(getAudioSystemInfo().channels); });
+    addMetaDataRow("Frames", [this]() { return std::to_string(getAudioSystemInfo().total_frames); });
+    addMetaDataRow("kbps", [this]() {
+        char value[32];
+        snprintf(value, sizeof(value), "%.1f", getAudioSystemInfo().bitrate);
+        return std::string(value);
     });
 
-    /// @brief Statistical and Analysis Row
     auto statRow = std::make_shared<Row>();
-    statRow->parent(mainCol.get())->heightRel(0.3);
+    statRow->heightRel(0.35)->widthRel(1.0);
+    statRow->mainAxisAlignment(MX_SPACE_BETWEEN);
     mainCol->add(statRow);
 
-    auto barPlot = std::make_shared<BarPlot>();
-    barPlot->parent(statRow.get())->heightRel(1.0)->widthRel(0.5);
-    barPlot->title("Binned Waveform @ Bin-size: 32 & Chunk-size: 1024");
-    barPlot->minY(-1.0);
-    barPlot->maxY(1.0);
-    barPlot->binWidth(1);
-    barPlot->color(COLOR_GREEN);
-    barPlot->bgColor(COLOR_BLACK);
-    barPlot->nBins(32);
-    barPlot->acquireDataCb(std::move(acquireChannelDataCallback));
-    statRow->add(barPlot);
+    auto waveform = std::make_shared<BarPlot>();
+    waveform->heightRel(1.0)->widthRel(0.325);
+    waveform->title(" WAVE::CH0 ");
+    waveform->minY(-1.0);
+    waveform->maxY(1.0);
+    waveform->nBins(32);
+    waveform->smoothing(0.5);
+    waveform->color(COLOR_GREEN);
+    waveform->axisLabel([]() { return std::string(" -1.0 / 0 / +1.0 "); });
+    waveform->acquireDataCb(std::move(acquireChannelDataCallback));
+    statRow->add(waveform);
 
-    auto specPlot = std::make_shared<BarPlot>();
-    specPlot->parent(statRow.get())->heightRel(1.0)->widthRel(0.5);
-    // TODO: Handle the raw values, change to class properties instead
-    specPlot->title("Binned Spectrum @ Bin-size: 32 & Chunk-size: 1024");
-    specPlot->minY(0.0);
-    specPlot->maxY(10.24);
-    specPlot->binWidth(1);
-    specPlot->color(COLOR_RED);
-    specPlot->bgColor(COLOR_BLACK);
-    specPlot->nBins(32);
-    specPlot->acquireDataCb(std::move(acquireSpecDataCallback));
-    statRow->add(specPlot);
+    auto spectrum = std::make_shared<BarPlot>();
+    spectrum->heightRel(1.0)->widthRel(0.325);
+    spectrum->title(" FFT::CH0 / dBFS ");
+    spectrum->minY(-80.0);
+    spectrum->maxY(0.0);
+    spectrum->nBins(32);
+    spectrum->smoothing(0.25);
+    spectrum->color(COLOR_RED);
+    spectrum->axisLabel([this]() {
+        char value[48];
+        snprintf(value, sizeof(value), " 0 Hz -> %.1f kHz ", getAudioSystemInfo().sample_rate / 2000.0);
+        return std::string(value);
+    });
+    spectrum->acquireDataCb(std::move(acquireSpecDataCallback));
+    statRow->add(spectrum);
 
-    /// @brief Progress Bar Column
-    auto pbCol = std::make_shared<Column>();
-    pbCol->parent(mainCol.get())->height(5)->widthRel(0.9);
-    mainCol->add(pbCol);
+    auto pitchClasses = std::make_shared<BarPlot>();
+    pitchClasses->heightRel(1.0)->widthRel(0.325);
+    pitchClasses->title(" CQT::PITCH CLASS ");
+    pitchClasses->minY(-60.0);
+    pitchClasses->maxY(0.0);
+    pitchClasses->nBins(12);
+    pitchClasses->smoothing(0.25);
+    pitchClasses->color(COLOR_GREEN);
+    pitchClasses->binLabels({"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"});
+    pitchClasses->acquireDataCb(std::move(acquireCqtDataCallback));
+    statRow->add(pitchClasses);
 
-    auto pbWid = std::make_shared<ProgressBar>();
-    pbWid->parent(mainCol.get())->height(2)->widthRel(0.9);
-    pbWid->color(COLOR_GREEN);
-    pbWid->bgColor(COLOR_BLACK);
-    pbWid->onTouch(std::move(setTimeCallback));
-    pbWid->getProgressCb(std::move(getTimeCallback));
-    pbCol->add(pbWid);
+    auto progress = std::make_shared<ProgressBar>();
+    progress->height(1)->widthRel(1.0);
+    progress->onTouch([this](double ratio) { setTimeCallback(ratio); });
+    progress->getProgressCb([this]() { return getTimeCallback(); });
+    mainCol->add(progress);
 
-    auto pbTextRow = std::make_shared<Row>();
-    pbTextRow->parent(pbCol.get())->height(1)->widthRel(0.9);
-    pbTextRow->mainAxisAlignment(MX_SPACE_BETWEEN);
-    pbCol->add(pbTextRow);
+    auto timeRow = std::make_shared<Row>();
+    timeRow->height(1)->widthRel(1.0);
+    timeRow->mainAxisAlignment(MX_SPACE_BETWEEN);
+    mainCol->add(timeRow);
+    auto elapsed = std::make_shared<TextBox>();
+    elapsed->height(1)->width(16);
+    elapsed->getTextCb(std::move(getElapsedSecString));
+    timeRow->add(elapsed);
+    auto total = std::make_shared<TextBox>();
+    total->height(1)->width(16);
+    total->getTextCb(std::move(getTotalSecString));
+    timeRow->add(total);
 
-    auto textCurTime = std::make_shared<TextBox>();
-    textCurTime->parent(pbTextRow.get())->height(1)->width(20);
-    textCurTime->color(COLOR_RED);
-    textCurTime->bgColor(COLOR_BLACK);
-    textCurTime->getTextCb(std::move(getElapsedSecString));
-    pbTextRow->add(textCurTime);
-
-    auto textTotTime = std::make_shared<TextBox>();
-    textTotTime->parent(pbTextRow.get())->height(1)->width(20);
-    textTotTime->color(COLOR_GREEN);
-    textTotTime->bgColor(COLOR_BLACK);
-    textTotTime->getTextCb(std::move(getTotalSecString));
-    pbTextRow->add(textTotTime);
-
-    auto btnRow = std::make_shared<Row>();
-    btnRow->parent(mainCol.get())->height(5)->widthRel(0.9);
-    btnRow->spacing(2);
-    mainCol->add(btnRow);
-
-    auto btnPrev10s = std::make_shared<Button>();
-    btnPrev10s->parent(mainCol.get())->height(3)->width(10);
-    btnPrev10s->activeText("*");
-    btnPrev10s->inactiveText("<< 10s");
-    btnPrev10s->triggerKey('b');
-    btnPrev10s->onClick([this](bool _) { prevSecCallback(10); });
-    btnPrev10s->getStatusCb([]() -> bool { return false; });
-    btnPrev10s->color(COLOR_RED);
-    btnRow->add(btnPrev10s);
-
-    auto btnPlay = std::make_shared<Button>();
-    btnPlay->parent(mainCol.get())->height(3)->width(10);
-    btnPlay->activeText("Pause");
-    btnPlay->inactiveText("Play");
-    btnPlay->triggerKey(' ');
-    btnPlay->onClick(std::move(setPlaybackCallback));
-    btnPlay->getStatusCb(std::move(getPlaybackCallback));
-    btnRow->add(btnPlay);
-
-    auto btnNext10s = std::make_shared<Button>();
-    btnNext10s->parent(mainCol.get())->height(3)->width(10);
-    btnNext10s->activeText("*");
-    btnNext10s->inactiveText("10s >>");
-    btnNext10s->triggerKey('f');
-    btnNext10s->onClick([this](bool _) { nextSecCallback(10); });
-    btnNext10s->getStatusCb([]() -> bool { return false; });
-    btnNext10s->color(COLOR_RED);
-    btnRow->add(btnNext10s);
-
-    auto btnMute = std::make_shared<Button>();
-    btnMute->parent(btnRow.get())->height(3)->width(10);
-    btnMute->activeText("Unmute");
-    btnMute->inactiveText("Mute");
-    btnMute->triggerKey('m');
-    btnMute->onClick(std::move(setMuteCallback));
-    btnMute->getStatusCb(std::move(getMuteCallback));
-    btnRow->add(btnMute);
-
-    auto pbVolume = std::make_shared<ProgressBar>();
-    pbVolume->parent(btnRow.get())->height(1)->width(16);
-    pbVolume->color(COLOR_RED);
-    pbVolume->bgColor(COLOR_BLACK);
-    pbVolume->onTouch([this](double v) { setVolumeCallback(v); });
-    pbVolume->getProgressCb([this]() -> double { return getVolumeCallback(); });
-    btnRow->add(pbVolume);
-
-    auto getVolumeString = [this]() -> std::string {
-        double v = getVolumeCallback() * 100.0;
-        char buff[32];
-        sprintf(buff, "%.2f %%", v);
-        return buff;
+    auto controls = std::make_shared<Row>();
+    controls->height(3)->widthRel(1.0);
+    controls->spacing(1);
+    mainCol->add(controls);
+    auto addButton = [&](const char* off, const char* on,
+                         std::function<void(bool)>&& click, std::function<bool()>&& state) {
+        auto button = std::make_shared<Button>();
+        button->height(3)->width(10);
+        button->inactiveText(off);
+        button->activeText(on);
+        button->onClick(std::move(click));
+        button->getStatusCb(std::move(state));
+        controls->add(button);
     };
+    addButton("<< 10s", "<< 10s", [this](bool) { prevSecCallback(10); }, []() { return false; });
+    addButton("> PLAY", "|| PAUSE", [this](bool play) { setPlaybackCallback(play); },
+              [this]() { return getPlaybackCallback(); });
+    addButton("10s >>", "10s >>", [this](bool) { nextSecCallback(10); }, []() { return false; });
+    addButton("MUTE", "UNMUTE", [this](bool mute) { setMuteCallback(mute); },
+              [this]() { return getMuteCallback(); });
 
-    auto textVolume = std::make_shared<TextBox>();
-    textVolume->parent(btnRow.get())->height(1)->width(12);
-    textVolume->color(COLOR_GREEN);
-    textVolume->bgColor(COLOR_BLACK);
-    textVolume->getTextCb(std::move(getVolumeString));
-    btnRow->add(textVolume);
+    auto volume = std::make_shared<ProgressBar>();
+    volume->height(1)->width(12);
+    volume->color(COLOR_GREEN);
+    volume->onTouch([this](double value) { setVolumeCallback(value); });
+    volume->getProgressCb([this]() { return getVolumeCallback(); });
+    controls->add(volume);
+    auto volumeText = std::make_shared<TextBox>();
+    volumeText->height(1)->width(10);
+    volumeText->getTextCb([this]() {
+        char value[16];
+        snprintf(value, sizeof(value), "VOL %.0f%%", getVolumeCallback() * 100.0);
+        return std::string(value);
+    });
+    controls->add(volumeText);
 
+    auto help = std::make_shared<TextBox>();
+    help->height(1)->widthRel(1.0);
+    help->text("[SPC] play [b/f] seek [+/-] vol [m] mute [q] quit");
+    mainCol->add(help);
+
+    mainWindow->keyCb([this](int ch) {
+        if (ch == ' ') setPlaybackCallback(!getPlaybackCallback());
+        else if (ch == 'b' || ch == KEY_LEFT) prevSecCallback(10);
+        else if (ch == 'f' || ch == KEY_RIGHT) nextSecCallback(10);
+        else if (ch == 'm') setMuteCallback(!getMuteCallback());
+        else if (ch == '+' || ch == '=' || ch == KEY_UP)
+            setVolumeCallback(std::min(1.0, getVolumeCallback() + 0.05));
+        else if (ch == '-' || ch == KEY_DOWN)
+            setVolumeCallback(std::max(0.0, getVolumeCallback() - 0.05));
+        else if (ch == KEY_HOME) setTimeCallback(0.0);
+        else if (ch == KEY_END) setTimeCallback(1.0);
+    });
     mainWindow->resize();
 }
 
 void CursedLayout::resize() { mainWindow->resize(); }
-
 void CursedLayout::run() { mainWindow->run(); }

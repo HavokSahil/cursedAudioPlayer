@@ -6,14 +6,14 @@
 
 /// @enum WidgetState
 /// @brief States the current state of the widget.
-enum WidgetState {
+enum class WidgetState {
     /// @brief The window is ready to be mounted, but not mounted.
     READY = 0,
     /// @brief The window is mounted, and placed on the screen.
     MOUNTED = 1,
 };
 
-static int id_glob = 0;
+inline int id_glob = 0;
 
 /// @class Widget
 /// @brief The base class for all the widgets.
@@ -56,7 +56,7 @@ public:
     /// @brief Clears the window
     void clear();
     /// @brief Updates the window size based on updated terminal size
-    void resize();
+    virtual void resize();
     /// @brief Updates the content of the widget
     virtual void update() = 0;
     /// @brief Handle the IO event. Each widget implements its own event handler
@@ -84,6 +84,7 @@ public:
     WidgetState getState();
 
 protected:
+    WINDOW* _createWindow();
     /// @brief The unique id of the widget
     int _id;
     /// @brief The NCurses window.
@@ -111,5 +112,5 @@ protected:
     /// @brief Widget state enumerator.
     /// @brief Flag for the changes in state of the window
     bool _commit{true};
-    WidgetState _state{READY};
+    WidgetState _state{WidgetState::READY};
 };
