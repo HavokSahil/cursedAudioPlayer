@@ -70,7 +70,7 @@ jobs:
             container: archlinux:base
             cpp_compiler: g++
             c_compiler: gcc
-            install: pacman -Sy --noconfirm cmake base-devel clang ncurses
+            install: pacman -Syu --noconfirm cmake base-devel clang ncurses
           - os: debian
             container: debian:latest
             cpp_compiler: g++

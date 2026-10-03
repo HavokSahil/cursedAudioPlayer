@@ -73,7 +73,8 @@ jobs:
         run: |
           python3 packaging/arch/render.py artifacts/cursedap-*.tar.gz artifacts/aur
           docker run --rm -v "$PWD:/src" -w /src archlinux:base-devel bash -c '
-            pacman -Syu --noconfirm cmake python namcap
+            set -euo pipefail
+            pacman -Syu --noconfirm cmake python namcap ripgrep
             useradd -m builder
             cp -r /src/artifacts /home/builder/package
             chown -R builder:builder /home/builder/package
@@ -81,7 +82,8 @@ jobs:
             su builder -c "makepkg --printsrcinfo > .SRCINFO"
             cp ../cursedap-*.tar.gz .
             su builder -c "makepkg --noconfirm"
-            namcap PKGBUILD *.pkg.tar.zst
+            namcap PKGBUILD *.pkg.tar.zst | tee /tmp/namcap.log
+            if rg -q " E: " /tmp/namcap.log; then exit 1; fi
             cp *.pkg.tar.zst /src/artifacts/
             cp .SRCINFO /src/artifacts/aur/
           '

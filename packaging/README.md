@@ -1,6 +1,6 @@
 # Linux releases
 
-The executable and package name are `cursedap`. Release 1.1.0 contains native
+The executable and package name are `cursedap`. Release 1.1.1 contains native
 x86_64 packages for Arch, Debian 12, Ubuntu 24.04, Fedora 43, and openSUSE Leap 16.
 Choose the asset built for your distribution; RPM packages are built separately
 for Fedora and openSUSE. These are downloadable packages, not apt/yum repositories.
@@ -33,8 +33,8 @@ For each release, update the version in `CMakeLists.txt` and the manual page, co
 then push the matching tag:
 
 ```sh
-git tag -a v1.1.0 -m 'cursedap 1.1.0'
-git push origin v1.1.0
+git tag -a v1.1.1 -m 'cursedap 1.1.1'
+git push origin v1.1.1
 ```
 
 Manual reruns must select the version tag, not the default branch. Release packages
@@ -63,7 +63,7 @@ cd cursedap
 makepkg --verifysource
 makepkg --printsrcinfo > .SRCINFO
 git add PKGBUILD .SRCINFO
-git commit -m 'Release cursedap 1.1.0'
+git commit -m 'Release cursedap 1.1.1'
 git push
 ```
 
